@@ -86,37 +86,6 @@ public extension AO3Parser {
                 )
             }
             
-            /*
-            var subscriptionRecordID: Int? = nil
-
-            if let subscriptionForm = try doc.select("form:has(input[name=subscription[subscribable_id]])").first() {
-                
-                var buttonSaysUnsubscribe = false
-                if let submitInput = try subscriptionForm.select("input[type=submit]").first() {
-                    let submitValue = try submitInput.attr("value").trimmingCharacters(in: .whitespacesAndNewlines)
-                    buttonSaysUnsubscribe = (submitValue.lowercased() == "unsubscribe")
-                }
-                
-                if buttonSaysUnsubscribe {
-                    let formId = try subscriptionForm.attr("id")
-                    
-                    if let regex = try? NSRegularExpression(pattern: "\\d+"),
-                       let match = regex.firstMatch(in: formId, range: NSRange(formId.startIndex..., in: formId)),
-                       let range = Range(match.range, in: formId) {
-                        
-                        subscriptionRecordID = Int(String(formId[range]))
-                        
-                    } else {
-                        let actionUrl = try subscriptionForm.attr("action")
-                        if let lastComponent = actionUrl.split(separator: "/").last,
-                           let id = Int(String(lastComponent)) {
-                            subscriptionRecordID = id
-                        }
-                    }
-                }
-            }
-            */
-            
             let subscriptionRecordID = try parseSubscriptionID(from: doc)
 
             var unblockActionID: Int? = nil
