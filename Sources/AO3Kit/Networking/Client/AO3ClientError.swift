@@ -25,6 +25,7 @@ public enum AO3ClientError: Error {
     case invalidCredentials
     case pseudNotFound
     case noSubscription
+    case systemOutage
 }
 
 extension AO3ClientError: LocalizedError {
@@ -77,6 +78,9 @@ extension AO3ClientError: LocalizedError {
             
         case .noSubscription:
             return String(localized: "This target is not subscribed already")
+            
+        case .systemOutage:
+            return String(localized: "AO3 is experiencing issues, please try again later.")
         }
     }
 }

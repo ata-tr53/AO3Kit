@@ -17,6 +17,7 @@ public final class AO3Client: Sendable {
     internal let taskTracker = AO3TaskTracker()
     
     internal let bypassAdultBlock: Bool
+    public let cullRequestsOnOutage: Bool
     
     public init(
         session: URLSession = .shared,
@@ -25,12 +26,14 @@ public final class AO3Client: Sendable {
         cache: AO3Cache = AO3Cache(
             storageStrategy: .memoryOnly,
             memoryCountLimit: 20
-        )
+        ),
+        cullRequestsOnOutage: Bool = true
     ) {
         self.session = session
         self.userAgent = userAgent
         self.bypassAdultBlock = bypassAdultBlock
         self.cache = cache
+        self.cullRequestsOnOutage = cullRequestsOnOutage
         
         if bypassAdultBlock {
             if let adultCookie = HTTPCookie(properties: [
@@ -430,6 +433,14 @@ public final class AO3Client: Sendable {
     
     private func executeNetworkCall(request: URLRequest, maxRetries: Int) async throws -> Data {
         var attempt = 0
+        
+        if cullRequestsOnOutage {
+            let status = try? await AO3StatusMonitor.shared.currentStatus()
+            if let isOperational = status?.isOperational, !isOperational {
+                print("❌ AO3 Client: Request culled due to known system outage.")
+                throw AO3ClientError.systemOutage
+            }
+        }
         
         while true {
             attempt += 1
