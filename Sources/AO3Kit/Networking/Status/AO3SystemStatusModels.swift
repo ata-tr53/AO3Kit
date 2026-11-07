@@ -21,4 +21,11 @@ public struct AO3Incident: Codable, Sendable {
     public let content: String
     public let date: Date
     public let link: String?
+    
+    public init(title: String, content: String, date: Date, link: String? = nil) {
+        self.title = title
+        self.content = content
+        self.date = date
+        self.link = link
+    }
 }
