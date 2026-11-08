@@ -5,32 +5,41 @@
 //  Created by İsmail Ata Bayraktutan on 29.09.2026.
 //
 
+import Foundation
 
 public actor AO3TaskTracker {
     
-    private var inFlightTasks: [String: Any] = [:]
+    private struct InFlightEntry {
+        let id: UUID
+        let task: Any
+    }
+    
+    private var inFlightTasks: [String: InFlightEntry] = [:]
     
     public init() {}
     
-    /// Executes a network task, or returns the result of an identical task if one is already running.
-    public func track<T: Sendable>(key: String, operation: @Sendable @escaping () async throws -> T) async throws -> T {
-        
-        if let existingTask = inFlightTasks[key] as? Task<T, Error> {
-            return try await existingTask.value
+    /// Executes an async operation, or awaits an identical in-flight operation for the same key.
+    public func track<T: Sendable>(
+        key: String,
+        operation: @Sendable @escaping () async throws -> T
+    ) async throws -> T {
+        if let existing = inFlightTasks[key]?.task as? Task<T, Error> {
+            return try await existing.value
         }
         
+        let taskID = UUID()
         let newTask = Task<T, Error> {
-            defer {
-                Task { self.removeTask(forKey: key) }
-            }
-            return try await operation()
+            try await operation()
         }
         
-        inFlightTasks[key] = newTask
+        inFlightTasks[key] = InFlightEntry(id: taskID, task: newTask)
+        
+        defer {
+            if inFlightTasks[key]?.id == taskID {
+                inFlightTasks.removeValue(forKey: key)
+            }
+        }
+        
         return try await newTask.value
-    }
-    
-    private func removeTask(forKey key: String) {
-        inFlightTasks.removeValue(forKey: key)
     }
 }

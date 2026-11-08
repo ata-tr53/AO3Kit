@@ -7,15 +7,19 @@
 
 import Foundation
 
-internal class AtomFeedParser: NSObject, XMLParserDelegate {
+internal final class AtomFeedParser: NSObject, XMLParserDelegate {
     private let parser: XMLParser
     private var incidents: [AO3Incident] = []
     
+    private let dateFormatter = ISO8601DateFormatter()
+    
+    private var isInsideEntry = false
     private var currentElement = ""
+    private var currentID = ""
     private var currentTitle = ""
     private var currentContent = ""
     private var currentDateStr = ""
-    private var currentLink: String? = nil
+    private var currentLink: String?
     
     private var parseError: Error?
     
@@ -33,23 +37,33 @@ internal class AtomFeedParser: NSObject, XMLParserDelegate {
         return incidents
     }
     
-    func parser(_ parser: XMLParser, didStartElement elementName: String, namespaceURI: String?, qualifiedName qName: String?, attributes attributeDict: [String : String] = [:]) {
+    func parser(
+        _ parser: XMLParser,
+        didStartElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?,
+        attributes attributeDict: [String: String] = [:]
+    ) {
         currentElement = elementName
         
         if elementName == "entry" {
+            isInsideEntry = true
+            currentID = ""
             currentTitle = ""
             currentContent = ""
             currentDateStr = ""
             currentLink = nil
-        } else if elementName == "link" {
-            if let href = attributeDict["href"] {
+        } else if isInsideEntry && elementName == "link" {
+            if attributeDict["rel"] == "alternate", let href = attributeDict["href"] {
                 currentLink = href
             }
         }
     }
     
     func parser(_ parser: XMLParser, foundCharacters string: String) {
+        guard isInsideEntry else { return }
         switch currentElement {
+        case "id": currentID += string
         case "title": currentTitle += string
         case "content": currentContent += string
         case "updated": currentDateStr += string
@@ -57,19 +71,25 @@ internal class AtomFeedParser: NSObject, XMLParserDelegate {
         }
     }
     
-    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?, qualifiedName qName: String?) {
+    func parser(
+        _ parser: XMLParser,
+        didEndElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?
+    ) {
         if elementName == "entry" {
-            // OTW Atom feed uses ISO8601 formatting for dates
-            let formatter = ISO8601DateFormatter()
-            let date = formatter.date(from: currentDateStr.trimmingCharacters(in: .whitespacesAndNewlines)) ?? Date()
+            let trimmedDate = currentDateStr.trimmingCharacters(in: .whitespacesAndNewlines)
+            let date = dateFormatter.date(from: trimmedDate) ?? Date()
             
             let incident = AO3Incident(
+                id: currentID.trimmingCharacters(in: .whitespacesAndNewlines),
                 title: currentTitle.trimmingCharacters(in: .whitespacesAndNewlines),
                 content: currentContent.trimmingCharacters(in: .whitespacesAndNewlines),
                 date: date,
                 link: currentLink
             )
             incidents.append(incident)
+            isInsideEntry = false
         }
         currentElement = ""
     }

@@ -46,18 +46,15 @@ public extension AO3Client {
         let indexHTML = try await performRequest(url: indexURL, method: .get)
         let csrfToken = try AO3Parser.parseCSRFToken(from: indexHTML)
         
-        var components = URLComponents()
-        components.queryItems = [
-            URLQueryItem(name: "authenticity_token", value: csrfToken),
-            URLQueryItem(name: "subscription[subscribable_id]", value: String(targetID)),
-            URLQueryItem(name: "subscription[subscribable_type]", value: targetType)
-        ]
-        
-        guard let postString = components.query, let postData = postString.data(using: .utf8) else {
-            throw AO3ClientError.invalidData
-        }
-        
-        let responseHTML = try await performRequest(url: indexURL, method: .post, body: postData)
+        let responseHTML = try await performFormPost(
+            url: indexURL,
+            formItems: [
+                URLQueryItem(name: "authenticity_token", value: csrfToken),
+                URLQueryItem(name: "subscription[subscribable_id]", value: String(targetID)),
+                URLQueryItem(name: "subscription[subscribable_type]", value: targetType)
+            ],
+            referer: indexURL
+        )
         
         let successMessages = ["Successfully subscribed", "You are now following"]
         guard successMessages.contains(where: { responseHTML.contains($0) }) else {
@@ -79,17 +76,14 @@ public extension AO3Client {
         let indexHTML = try await performRequest(url: indexURL, method: .get)
         let csrfToken = try AO3Parser.parseCSRFToken(from: indexHTML)
         
-        var components = URLComponents()
-        components.queryItems = [
-            URLQueryItem(name: "_method", value: "delete"),
-            URLQueryItem(name: "authenticity_token", value: csrfToken)
-        ]
-        
-        guard let postString = components.query, let postData = postString.data(using: .utf8) else {
-            throw AO3ClientError.invalidData
-        }
-        
-        let responseHTML = try await performRequest(url: actionURL, method: .post, body: postData)
+        let responseHTML = try await performFormPost(
+            url: actionURL,
+            formItems: [
+                URLQueryItem(name: "_method", value: "delete"),
+                URLQueryItem(name: "authenticity_token", value: csrfToken)
+            ],
+            referer: indexURL
+        )
         
         guard responseHTML.contains("Successfully deleted subscription") || responseHTML.contains("Subscription deleted") else {
             if !responseHTML.contains("edit_subscription_\(subscriptionID)") {

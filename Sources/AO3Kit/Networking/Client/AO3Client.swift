@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OSLog
 
 @Observable
 public final class AO3Client: Sendable {
@@ -75,7 +76,7 @@ public final class AO3Client: Sendable {
     }
     
     public static func dissect(url: URL) -> AO3Endpoint {
-        guard let host = url.host, host.contains("archiveofourown.org") else { return .unknown }
+        guard isAO3(url: url) else { return .unknown }
         
         let pathParts = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
         guard !pathParts.isEmpty else { return .home }
@@ -259,7 +260,7 @@ public final class AO3Client: Sendable {
         parser: @Sendable @escaping (String) throws -> [T]
     ) async throws -> AO3PaginatedResult<T> {
         
-        guard let url = endpoint.url() else {
+        guard let url = endpoint.url(bypassAdultBlock: self.bypassAdultBlock) else {
             throw AO3ClientError.invalidEndpoint
         }
         
@@ -320,13 +321,36 @@ public final class AO3Client: Sendable {
         parser: @Sendable @escaping (String) throws -> [T]
     ) async throws -> [T] {
         
-        guard let url = endpoint.url() else {
+        guard let url = endpoint.url(bypassAdultBlock: self.bypassAdultBlock) else {
             throw AO3ClientError.invalidEndpoint
         }
         
         return try await fetchAllItems(url: url, maxPages: maxPages, progressHandler: progressHandler, fallbackStrategy: fallbackStrategy, parser: parser)
     }
     
+    
+    //-----------------------------------------------------------------------------------
+    
+    //MARK: POST Helpers
+    
+    internal func performFormPost(
+        url: URL,
+        formItems: [URLQueryItem],
+        referer: URL? = nil,
+        additionalHeaders: [String: String]? = nil
+    ) async throws -> String {
+        var headers = additionalHeaders ?? [:]
+        if let referer {
+            headers["Referer"] = referer.absoluteString
+        }
+        let body = try formItems.formURLEncodedData()
+        return try await performRequest(
+            url: url,
+            method: .post,
+            body: body,
+            headers: headers
+        )
+    }
     
     //-----------------------------------------------------------------------------------
     
@@ -437,7 +461,7 @@ public final class AO3Client: Sendable {
         if cullRequestsOnOutage {
             let status = try? await AO3StatusMonitor.shared.currentStatus()
             if let isOperational = status?.isOperational, !isOperational {
-                print("❌ AO3 Client: Request culled due to known system outage.")
+                Logger.network.error("Request culled due to known system outage.")
                 throw AO3ClientError.systemOutage
             }
         }
@@ -445,12 +469,26 @@ public final class AO3Client: Sendable {
         while true {
             attempt += 1
             do {
+                try Task.checkCancellation()
+                try await AO3NetworkMonitor.shared.requireConnection()
+                
                 try await AO3RateLimiter.shared.waitIfNeeded()
                 
+                Logger.network.debug("Fetching \(request.url?.absoluteString ?? "unknown URL") (Attempt \(attempt))")
                 let (data, response) = try await session.data(for: request)
                 
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw URLError(.badServerResponse)
+                }
+                
+                if httpResponse.statusCode == 429 {
+                    if let retryAfterString = httpResponse.value(forHTTPHeaderField: "Retry-After"),
+                       let retrySeconds = TimeInterval(retryAfterString) {
+                        Logger.network.warning("429 Too Many Requests. AO3 requested backoff of \(retrySeconds)s.")
+                        
+                        await AO3RateLimiter.shared.imposePenalty(seconds: retrySeconds)
+                    }
+                    throw URLError(URLError.Code(rawValue: 429))
                 }
                 
                 if !(200...299).contains(httpResponse.statusCode) {
@@ -460,29 +498,51 @@ public final class AO3Client: Sendable {
                 return data
                 
             } catch {
-                if shouldRetry(for: error, currentAttempt: attempt, maxRetries: maxRetries) {
-                    let backoffDelay = UInt64(attempt) * 1_000_000_000
+                
+                if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                    Logger.network.info("Task cancelled for \(request.url?.absoluteString ?? "")")
+                    throw error
+                }
+                
+                if shouldRetry(for: error, request: request, currentAttempt: attempt, maxRetries: maxRetries) {
+                    let baseDelay = pow(2.0, Double(attempt)) // 2, 4, 8 seconds
+                    let jitter = Double.random(in: 0...1.0)
+                    let totalDelay = baseDelay + jitter
+                    let backoffDelay = UInt64((totalDelay) * 1_000_000_000)
+                    
+                    Logger.network.debug("Request failed. Retrying in \(String(format: "%.2f", totalDelay))s...")
                     try await Task.sleep(nanoseconds: backoffDelay)
                     continue
                 } else {
+                    Logger.network.error("Network call failed after \(attempt) attempts: \(error.localizedDescription)")
                     throw error
                 }
             }
         }
     }
     
-    private func shouldRetry(for error: Error, currentAttempt: Int, maxRetries: Int) -> Bool {
+    private func shouldRetry(for error: Error, request: URLRequest, currentAttempt: Int, maxRetries: Int) -> Bool {
         guard currentAttempt < maxRetries else { return false }
+        
+        if request.httpMethod?.uppercased() != "GET" {
+            return false
+        }
+        
         if let urlError = error as? URLError {
             switch urlError.code {
             case .notConnectedToInternet, .timedOut, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost,
-                 URLError.Code(rawValue: 500), URLError.Code(rawValue: 502), URLError.Code(rawValue: 503), URLError.Code(rawValue: 504):
+                 URLError.Code(rawValue: 429),
+                 URLError.Code(rawValue: 500),
+                 URLError.Code(rawValue: 502),
+                 URLError.Code(rawValue: 503),
+                 URLError.Code(rawValue: 504):
                 return true
             default: return false
             }
         }
         return false
     }
+
 
     internal func isAdultWarningPage(html: String) -> Bool {
         return html.contains("This work could have adult content")

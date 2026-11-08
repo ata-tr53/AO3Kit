@@ -28,34 +28,27 @@ public extension AO3Client {
             throw AO3ClientError.invalidURL
         }
         
-        var formData: [String: String] = [:]
-        
+        var formItems: [URLQueryItem] = []
+
         for input in try form.select("input[type=hidden]").array() {
             let name = try input.attr("name")
-            if !name.isEmpty { formData[name] = try input.attr("value") }
+            if !name.isEmpty {
+                formItems.append(URLQueryItem(name: name, value: try input.attr("value")))
+            }
         }
-        
+
         if let submitBtn = try form.select("input[type=submit]").first() {
             let name = try submitBtn.attr("name")
-            if !name.isEmpty { formData[name] = try submitBtn.attr("value") }
+            if !name.isEmpty {
+                formItems.append(URLQueryItem(name: name, value: try submitBtn.attr("value")))
+            }
         }
-        
-        let postString = formData.map { key, value in
-            let escapedKey = key.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
-            let escapedValue = value.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
-            return "\(escapedKey)=\(escapedValue)"
-        }.joined(separator: "&")
-        
-        guard let postData = postString.data(using: .utf8) else {
-            throw AO3ClientError.invalidData
-        }
-        
-        let customHeaders = [
-            "Referer": confirmURL.absoluteString,
-            "Content-Type": "application/x-www-form-urlencoded"
-        ]
-        
-        _ = try await performRequest(url: actionURL, method: .post, body: postData, headers: customHeaders)
+
+        _ = try await performFormPost(
+            url: actionURL,
+            formItems: formItems,
+            referer: confirmURL
+        )
     }
     
     

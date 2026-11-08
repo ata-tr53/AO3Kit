@@ -84,7 +84,7 @@ public enum AO3Endpoint: Equatable, Sendable {
         var allQueryItems = routeQueryItems
         
         if bypassAdultBlock {
-            allQueryItems.append(URLQueryItem(name: "view_as", value: "adult"))
+            allQueryItems.append(URLQueryItem(name: "view_adult", value: "true"))
         }
         
         if let page = page, page > 1 {
@@ -137,8 +137,16 @@ public enum AO3WorkRoute: Equatable, Sendable {
         }
     }
     
-    static func dissect(remainder: [String]) -> AO3WorkRoute {
-        guard let first = remainder.first else { return .main }
+    static func dissect(remainder: [String], queryItems: [URLQueryItem]? = nil) -> AO3WorkRoute {
+        guard let first = remainder.first else {
+            if queryItems?.contains(where: { $0.name == "view_full_work" && $0.value == "true" }) == true {
+                return .fullWork
+            }
+            if queryItems?.contains(where: { $0.name == "show_comments" && $0.value == "true" }) == true {
+                return .comments
+            }
+            return .main
+        }
         
         switch first {
         case "navigate": return .navigate
@@ -245,7 +253,7 @@ public enum AO3UserRoute: Equatable, Sendable {
         }
     }
     
-    static func dissect(remainder: [String]) -> AO3UserRoute {
+    static func dissect(remainder: [String], queryItems: [URLQueryItem]? = nil) -> AO3UserRoute {
         guard let first = remainder.first else { return .profile }
         
         switch first {
@@ -260,16 +268,31 @@ public enum AO3UserRoute: Equatable, Sendable {
         case "gifts": return .gifts
         case "readings":
             if remainder.count > 1 {
-                if remainder[1] == "clear" { return .clearHistory }
-                if let historyID = Int(remainder[1]) { return .historyItem(id: historyID) }
+                if remainder[1] == "clear" || remainder[1] == "confirm_clear" {
+                    return .clearHistory
+                }
+                if let historyID = Int(remainder[1]) {
+                    return .historyItem(id: historyID)
+                }
             }
-            return .history(showToRead: false)
+            let isToRead = queryItems?.contains { $0.name == "show" && $0.value == "to-read" } ?? false
+            return .history(showToRead: isToRead)
         case "pseuds":
             if remainder.count > 1 { return .pseud(name: remainder[1]) }
             return .allPseuds
         case "favorite_tags": return .favoriteTags
-        case "muted/users": return .muted
-        case "blocked/users": return .blocked
+        case "muted":
+            if remainder.contains("confirm_mute"),
+               let target = queryItems?.first(where: { $0.name == "muted_id" })?.value {
+                return .confirmMute(targetUsername: target)
+            }
+            return .muted
+        case "blocked":
+            if remainder.contains("confirm_block"),
+               let target = queryItems?.first(where: { $0.name == "blocked_id" })?.value {
+                return .confirmBlock(targetUsername: target)
+            }
+            return .blocked
         case "inbox": return .inbox
         case "stats": return .stats
         case "series": return .series

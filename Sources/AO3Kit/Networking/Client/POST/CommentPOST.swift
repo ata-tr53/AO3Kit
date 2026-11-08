@@ -33,16 +33,6 @@ public extension AO3Client {
         let commentableType = replyToCommentID != nil ? "Comment" : "Chapter"
         let targetID = replyToCommentID != nil ? String(replyToCommentID!) : String(chapterID)
         
-        let parameters: [String: String] = [
-            "utf8": "✓",
-            "authenticity_token": csrfToken,
-            "comment[commentable_type]": commentableType,
-            "comment[commentable_id]": targetID,
-            "comment[pseud_id]": String(pseudIntID),
-            "comment[comment_content]": content,
-            "commit": replyToCommentID != nil ? "Reply" : "Comment"
-        ]
-        
         let postURLString: String
         if let replyID = replyToCommentID {
             postURLString = "https://archiveofourown.org/comments/\(replyID)/comments"
@@ -54,16 +44,18 @@ public extension AO3Client {
             throw AO3ClientError.invalidURL
         }
         
-        let headers: [String: String] = [
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Referer": chapterURL.absoluteString
-        ]
-        
-        let responseHTML = try await performRequest(
+        let responseHTML = try await performFormPost(
             url: postURL,
-            method: .post,
-            body: parameters.percentEncoded(),
-            headers: headers
+            formItems: [
+                URLQueryItem(name: "utf8", value: "✓"),
+                URLQueryItem(name: "authenticity_token", value: csrfToken),
+                URLQueryItem(name: "comment[commentable_type]", value: commentableType),
+                URLQueryItem(name: "comment[commentable_id]", value: targetID),
+                URLQueryItem(name: "comment[pseud_id]", value: String(pseudIntID)),
+                URLQueryItem(name: "comment[comment_content]", value: content),
+                URLQueryItem(name: "commit", value: replyToCommentID != nil ? "Reply" : "Comment")
+            ],
+            referer: chapterURL
         )
         
         if responseHTML.contains("errorExplanation") || responseHTML.contains("error") {
@@ -71,7 +63,6 @@ public extension AO3Client {
             print(responseHTML)
         }
 
-        
         await cache.invalidate(containing: String(chapterID))
     }
 

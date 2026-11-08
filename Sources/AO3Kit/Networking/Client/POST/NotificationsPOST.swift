@@ -22,24 +22,22 @@ public extension AO3Client {
         let inboxHTML = try await performRequest(url: inboxURL, method: .get)
         let csrfToken = try AO3Parser.parseCSRFToken(from: inboxHTML)
         
-        var components = URLComponents()
         var queryItems = [
             URLQueryItem(name: "utf8", value: "✓"),
             URLQueryItem(name: "_method", value: "put"),
             URLQueryItem(name: "authenticity_token", value: csrfToken),
             URLQueryItem(name: action.rawValue, value: action.buttonValue)
         ]
-        
+
         for id in commentIDs {
             queryItems.append(URLQueryItem(name: "inbox_comments[]", value: String(id)))
         }
-        components.queryItems = queryItems
-        
-        guard let postString = components.query, let postData = postString.data(using: .utf8) else {
-            throw AO3ClientError.invalidData
-        }
-        
-        let responseHTML = try await performRequest(url: inboxURL, method: .post, body: postData)
+
+        let responseHTML = try await performFormPost(
+            url: inboxURL,
+            formItems: queryItems,
+            referer: inboxURL
+        )
         
         guard responseHTML.contains("Inbox successfully updated") || responseHTML.contains("Item(s) deleted") else {
             throw AO3ClientError.invalidData

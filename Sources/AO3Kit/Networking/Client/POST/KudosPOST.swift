@@ -21,36 +21,26 @@ public extension AO3Client {
         let workHTML = try await performRequest(url: workURL, method: .get)
         let csrfToken = try AO3Parser.parseCSRFToken(from: workHTML)
         
-        let parameters = [
-            "utf8": "✓",
-            "authenticity_token": csrfToken,
-            "kudo[commentable_id]": String(workID),
-            "kudo[commentable_type]": "Work"
-        ]
-        
-        let postString = parameters.map { key, value in
-            let escapedKey = key.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
-            let escapedValue = value.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
-            return "\(escapedKey)=\(escapedValue)"
-        }.joined(separator: "&")
-        
-        guard let postData = postString.data(using: .utf8) else {
-            throw AO3ClientError.invalidData
-        }
-        
         guard let kudosURL = URL(string: "https://archiveofourown.org/kudos") else {
             throw AO3ClientError.invalidURL
         }
         
-        let customHeaders = [
-            "X-Requested-With": "XMLHttpRequest",
-            "X-CSRF-Token": csrfToken,
-            "Accept": "*/*;q=0.5, text/javascript, application/javascript",
-            "Origin": "https://archiveofourown.org",
-            "Referer": workURL.absoluteString
-        ]
-        
-        let responseHTML = try await performRequest(url: kudosURL, method: .post, body: postData, headers: customHeaders)
+        _ = try await performFormPost(
+            url: kudosURL,
+            formItems: [
+                URLQueryItem(name: "utf8", value: "✓"),
+                URLQueryItem(name: "authenticity_token", value: csrfToken),
+                URLQueryItem(name: "kudo[commentable_id]", value: String(workID)),
+                URLQueryItem(name: "kudo[commentable_type]", value: "Work")
+            ],
+            referer: workURL,
+            additionalHeaders: [
+                "X-Requested-With": "XMLHttpRequest",
+                "X-CSRF-Token": csrfToken,
+                "Accept": "*/*;q=0.5, text/javascript, application/javascript",
+                "Origin": "https://archiveofourown.org"
+            ]
+        )
         
         return true
     }

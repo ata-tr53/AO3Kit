@@ -20,30 +20,18 @@ public extension AO3Client {
         let loginPageHTML = try await performRequest(url: loginURL, method: .get)
         let csrfToken = try AO3Parser.parseCSRFToken(from: loginPageHTML)
         
-        let parameters = [
-            "utf8": "✓",
-            "authenticity_token": csrfToken,
-            "user[login]": username,
-            "user[password]": password,
-            "user[remember_me]": "\(rememberMe ? 1 : 0)",
-            "commit": "Log In"
-        ]
-        
-        let postString = parameters.map { key, value in
-            let escapedKey = key.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
-            let escapedValue = value.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
-            return "\(escapedKey)=\(escapedValue)"
-        }.joined(separator: "&")
-        
-        guard let postData = postString.data(using: .utf8) else {
-            throw AO3ClientError.invalidData
-        }
-        
-        let customHeaders = [
-            "Referer": loginURL.absoluteString
-        ]
-        
-        let responseHTML = try await performRequest(url: loginURL, method: .post, body: postData, headers: customHeaders)
+        let responseHTML = try await performFormPost(
+            url: loginURL,
+            formItems: [
+                URLQueryItem(name: "utf8", value: "✓"),
+                URLQueryItem(name: "authenticity_token", value: csrfToken),
+                URLQueryItem(name: "user[login]", value: username),
+                URLQueryItem(name: "user[password]", value: password),
+                URLQueryItem(name: "user[remember_me]", value: "\(rememberMe ? 1 : 0)"),
+                URLQueryItem(name: "commit", value: "Log In")
+            ],
+            referer: loginURL
+        )
         
         if responseHTML.contains("Successfully logged in") || responseHTML.contains("Hi, \(username)!") {
             return true
@@ -65,21 +53,13 @@ public extension AO3Client {
         let route: AO3WorkRoute = isMarkingForLater ? .markForLater : .markAsRead
         guard let postUrl = AO3Endpoint.work(id: workID, route: route).url() else { throw AO3ClientError.invalidURL }
         
-        var components = URLComponents()
-        components.queryItems = [
-            URLQueryItem(name: "authenticity_token", value: token),
-            URLQueryItem(name: "_method", value: "patch")
-        ]
-        
-        let bodyString = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B") ?? ""
-        let bodyData = Data(bodyString.utf8)
-        let headers = ["Content-Type": "application/x-www-form-urlencoded"]
-        
-        _ = try await self.performRequest(
+        _ = try await performFormPost(
             url: postUrl,
-            method: .post,
-            body: bodyData,
-            headers: headers
+            formItems: [
+                URLQueryItem(name: "authenticity_token", value: token),
+                URLQueryItem(name: "_method", value: "patch")
+            ],
+            referer: getUrl
         )
         
         await self.cache.invalidate(containing: "readings")
@@ -95,22 +75,14 @@ public extension AO3Client {
         
         guard let postUrl = AO3Endpoint.user(username: username, route: .historyItem(id: readingID)).url() else { throw AO3ClientError.invalidURL }
         
-        var components = URLComponents()
-        components.queryItems = [
-            URLQueryItem(name: "authenticity_token", value: token),
-            URLQueryItem(name: "_method", value: "delete"),
-            URLQueryItem(name: "reading", value: String(readingID))
-        ]
-        
-        let bodyString = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B") ?? ""
-        let bodyData = Data(bodyString.utf8)
-        let headers = ["Content-Type": "application/x-www-form-urlencoded"]
-        
-        _ = try await self.performRequest(
+        _ = try await performFormPost(
             url: postUrl,
-            method: .post,
-            body: bodyData,
-            headers: headers
+            formItems: [
+                URLQueryItem(name: "authenticity_token", value: token),
+                URLQueryItem(name: "_method", value: "delete"),
+                URLQueryItem(name: "reading", value: String(readingID))
+            ],
+            referer: getUrl
         )
         
         await self.cache.invalidate(containing: "\(username)/readings")
@@ -125,20 +97,12 @@ public extension AO3Client {
         
         guard let postUrl = AO3Endpoint.user(username: username, route: .clearHistory).url() else { throw AO3ClientError.invalidURL }
         
-        var components = URLComponents()
-        components.queryItems = [
-            URLQueryItem(name: "authenticity_token", value: token)
-        ]
-        
-        let bodyString = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B") ?? ""
-        let bodyData = Data(bodyString.utf8)
-        let headers = ["Content-Type": "application/x-www-form-urlencoded"]
-        
-        _ = try await self.performRequest(
+        _ = try await performFormPost(
             url: postUrl,
-            method: .post,
-            body: bodyData,
-            headers: headers
+            formItems: [
+                URLQueryItem(name: "authenticity_token", value: token)
+            ],
+            referer: getUrl
         )
         
         await self.cache.invalidate(containing: "\(username)/readings")

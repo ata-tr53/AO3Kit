@@ -14,15 +14,23 @@ public struct AO3SystemStatus: Codable, Sendable {
     public let latestIncident: AO3Incident?
     /// When this status was last fetched.
     public let timestamp: Date
+    
+    public init(isOperational: Bool, latestIncident: AO3Incident? = nil, timestamp: Date) {
+        self.isOperational = isOperational
+        self.latestIncident = latestIncident
+        self.timestamp = timestamp
+    }
 }
 
-public struct AO3Incident: Codable, Sendable {
+public struct AO3Incident: Identifiable, Codable, Sendable {
+    public let id: String
     public let title: String
     public let content: String
     public let date: Date
     public let link: String?
     
-    public init(title: String, content: String, date: Date, link: String? = nil) {
+    public init(id: String, title: String, content: String, date: Date, link: String? = nil) {
+        self.id = id
         self.title = title
         self.content = content
         self.date = date
