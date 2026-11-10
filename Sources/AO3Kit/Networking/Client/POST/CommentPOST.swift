@@ -67,24 +67,3 @@ internal extension AO3Client {
     }
 
 }
-
-
-internal extension AO3Parser {
-    /// Extracts a dictionary mapping Pseud display names to their internal integer IDs from a chapter/work page.
-    static func parsePseudIDs(from html: String) throws -> [String: Int] {
-        let document = try SwiftSoup.parse(html)
-        var pseudMap: [String: Int] = [:]
-        
-        let options = try document.select("select[name='comment[pseud_id]'] option")
-        
-        for option in options {
-            let name = try option.text()
-            if let idString = try? option.attr("value"), let id = Int(idString) {
-                pseudMap[name] = id
-            }
-        }
-        
-        return pseudMap
-    }
-
-}

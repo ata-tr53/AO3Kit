@@ -10,28 +10,112 @@ import Foundation
 
 public struct AO3Parser {
     
+    /// Parses an HTML string into a SwiftSoup Document, runs `body`, and guarantees `doc.empty()` inside an autoreleasepool.
+    internal static func withDocument<T>(html: String, _ body: (Document) throws -> T) throws -> T {
+        try autoreleasepool {
+            let doc = try SwiftSoup.parse(html)
+            defer { doc.empty() }
+            return try body(doc)
+        }
+    }
+    
+    /// Selects all matching elements in `html` and maps each element with `transform`, skipping individual failures.
+    internal static func parseElements<T>(
+        html: String,
+        selector: String,
+        transform: (Element) throws -> T?
+    ) throws -> [T] {
+        try withDocument(html: html) { doc in
+            try doc.select(selector).array().compactMap { element in
+                try? transform(element)
+            }
+        }
+    }
+    
+    // MARK: Shared Component Extractors
+    
+    internal static func parseImage(from imgElement: Element?) -> AO3Image? {
+        guard let imgElement,
+              let src = try? imgElement.attr("src"),
+              !src.isEmpty else { return nil }
+        
+        let alt = (try? imgElement.attr("alt")) ?? ""
+        let fullURL = src.hasPrefix("http") ? src : "https://archiveofourown.org\(src)"
+        return AO3Image(description: alt.isEmpty ? nil : alt, source: fullURL)
+    }
+    
+    static func parseAuthorLink(from linkElement: Element?, profilePicture: AO3Image? = nil) -> AO3AuthorLink? {
+        guard let linkElement,
+              let href = try? linkElement.attr("href"),
+              let name = try? linkElement.text(),
+              !name.isEmpty else { return nil }
+        
+        let components = href.components(separatedBy: "/")
+        guard components.count >= 3, components[1] == "users" else { return nil }
+        
+        let userID = components[2].removingPercentEncoding ?? components[2]
+        let pseudID = (components.count >= 5 && components[3] == "pseuds")
+            ? (components[4].removingPercentEncoding ?? components[4])
+            : userID
+        
+        return AO3AuthorLink(
+            id: userID,
+            pseudID: pseudID,
+            displayedName: name,
+            profilePicture: profilePicture
+        )
+    }
+    
+    static func parseAuthorLinks(in container: Element, selector: String = "a[rel=author]") -> [AO3AuthorLink] {
+        guard let elements = try? container.select(selector).array() else { return [] }
+        return elements.compactMap { parseAuthorLink(from: $0) }
+    }
+    
+    static func parseCollectionLinks(in container: Element, selector: String) -> [AO3CollectionLink] {
+        guard let elements = try? container.select(selector).array() else { return [] }
+        return elements.compactMap { el in
+            guard let href = try? el.attr("href"),
+                  let rawID = href.components(separatedBy: "/").last,
+                  !rawID.isEmpty,
+                  let name = try? el.text() else { return nil }
+            return AO3CollectionLink(id: rawID.removingPercentEncoding ?? rawID, displayName: name)
+        }
+    }
+    
+    static func parseSeriesLinks(in container: Element, selector: String) -> [AO3SeriesLink] {
+        guard let elements = try? container.select(selector).array() else { return [] }
+        return elements.compactMap { el in
+            guard let href = try? el.attr("href"),
+                  let idString = href.components(separatedBy: "/").last,
+                  let seriesID = Int(idString),
+                  let name = try? el.text() else { return nil }
+            
+            let parentText = el.parent()?.ownText() ?? ""
+            let partIndex = parentText.components(separatedBy: .whitespaces).compactMap(Int.init).first ?? 0
+            return AO3SeriesLink(id: seriesID, name: name, partIndex: partIndex > 0 ? partIndex : nil)
+        }
+    }
+    
+    static func cleanChapterTitle(_ rawTitle: String?, fallbackIndex: Int) -> String {
+        guard var title = rawTitle else { return "Chapter \(fallbackIndex)" }
+        if let range = title.range(of: #"^(Chapter \d+:?|\d+\.)\s*"#, options: .regularExpression) {
+            title.removeSubrange(range)
+        }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "Chapter \(fallbackIndex)" : trimmed
+    }
+    
     // MARK: - Pagination Parser
     
     internal static func parsePagination(html: String) throws -> (currentPage: Int, totalPages: Int) {
-        return try autoreleasepool {
-            let doc = try SwiftSoup.parse(html)
-            defer { doc.empty() }
-            
+        try withDocument(html: html) { doc in
             guard let paginationList = try doc.select("ol.pagination").first() else {
                 return (1, 1)
             }
             
-            let currentString = try paginationList.select(".current").first()?.text() ?? "1"
-            let currentPage = Int(currentString) ?? 1
-            
-            let pageLinks = try paginationList.select("li a[href*='page=']").array()
-            var maxPage = currentPage
-            
-            for link in pageLinks {
-                if let pageNum = Int(try link.text()), pageNum > maxPage {
-                    maxPage = pageNum
-                }
-            }
+            let currentPage = paginationList.firstInt(".current") ?? 1
+            let pageNumbers = paginationList.texts("li a[href*='page=']").compactMap(Int.init)
+            let maxPage = max(currentPage, pageNumbers.max() ?? currentPage)
             
             return (currentPage, maxPage)
         }
@@ -92,6 +176,7 @@ public struct AO3Parser {
     }
     
     // MARK: - Work Skin Extraction
+    
     static func extractWorkSkinCSS(from doc: Document) -> String? {
         do {
             let styles = try doc.select("style").array()
@@ -110,68 +195,34 @@ public struct AO3Parser {
     }
     
     // MARK: - Extract Chapters
+    
     internal static func extractChapters(from html: String, forWorkID workID: Int) -> [Int: String] {
-        return autoreleasepool {
+        (try? withDocument(html: html) { doc in
             var chapters: [Int: String] = [:]
             
-            do {
-                let doc = try SwiftSoup.parse(html)
-                
-                defer {
-                    doc.empty()
-                }
-                
-                if let chapterSelect = try doc.select("select#selected_id, select[name='selected_id']").first() {
-                    let options = try chapterSelect.select("option").array()
-                    
-                    for (index, option) in options.enumerated() {
-                        let value = try option.attr("value")
-                        let rawTitle = try option.text()
-                        
-                        if let chapterID = Int(value) {
-                            var cleanTitle = rawTitle
-                            
-                            if let range = cleanTitle.range(of: "^\\d+\\.\\s*", options: .regularExpression) {
-                                cleanTitle.removeSubrange(range)
-                            }
-                            
-                            if cleanTitle.trimmingCharacters(in: .whitespaces).isEmpty {
-                                cleanTitle = "Chapter \(index + 1)"
-                            }
-                            
-                            chapters[chapterID] = cleanTitle
-                        }
-                    }
-                    print("Dropdown chapters count: \(options.count)")
-                }
-                
-                if chapters.isEmpty {
-                    let pattern = "/works/\(workID)/chapters/(\\d+)"
-                    if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
-                        let nsRange = NSRange(html.startIndex..., in: html)
-                        let matches = regex.matches(in: html, range: nsRange)
-                        var foundChapterIDs = Set<Int>()
-                        for match in matches {
-                            if let range = Range(match.range(at: 1), in: html),
-                               let chapterID = Int(html[range]) {
-                                foundChapterIDs.insert(chapterID)
-                            }
-                        }
-                        
-                        let sortedIDs = foundChapterIDs.sorted()
-                        for (index, chapterID) in sortedIDs.enumerated() {
-                            chapters[chapterID] = "Chapter \(index + 1)"
-                        }
+            if let chapterSelect = try doc.select("select#selected_id, select[name='selected_id']").first() {
+                let options = try chapterSelect.select("option").array()
+                for (index, option) in options.enumerated() {
+                    if let chapterID = Int(try option.attr("value")) {
+                        chapters[chapterID] = cleanChapterTitle(try option.text(), fallbackIndex: index + 1)
                     }
                 }
-                
-                print("Extracted Chapters for work \(workID): \(chapters)")
-                return chapters
-            } catch {
-                print("Error extracting chapters: \(error)")
-                return [:]
             }
-        }
+            
+            if chapters.isEmpty,
+               let regex = try? NSRegularExpression(pattern: "/works/\(workID)/chapters/(\\d+)") {
+                let nsRange = NSRange(html.startIndex..., in: html)
+                let foundIDs = Set(regex.matches(in: html, range: nsRange).compactMap { match -> Int? in
+                    guard let range = Range(match.range(at: 1), in: html) else { return nil }
+                    return Int(html[range])
+                })
+                for (index, chapterID) in foundIDs.sorted().enumerated() {
+                    chapters[chapterID] = "Chapter \(index + 1)"
+                }
+            }
+            
+            return chapters
+        }) ?? [:]
     }
     
     // MARK: - CSRF Token Parser
@@ -180,19 +231,10 @@ public struct AO3Parser {
         if let token = extractCSRFTokenFast(from: html) {
             return token
         }
-        return try autoreleasepool {
-            let doc = try SwiftSoup.parse(html)
-            defer { doc.empty() }
-            
-            guard let tokenTag = try doc.select("meta[name=csrf-token]").first() else {
+        return try withDocument(html: html) { doc in
+            guard let token = doc.firstAttr("meta[name=csrf-token]", "content") else {
                 throw AO3ClientError.invalidData
             }
-            
-            let token = try tokenTag.attr("content")
-            guard !token.isEmpty else {
-                throw AO3ClientError.invalidData
-            }
-            
             return token
         }
     }
@@ -240,3 +282,29 @@ public struct AO3Parser {
 
 }
 
+
+
+internal extension Element {
+    /// Returns the trimmed text of the first element matching `selector`, or `nil` if not found/empty.
+    func firstText(_ selector: String) -> String? {
+        guard let text = try? select(selector).first()?.text().trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else { return nil }
+        return text
+    }
+    
+    /// Returns the text of all elements matching `selector`.
+    func texts(_ selector: String) -> [String] {
+        (try? select(selector).array().compactMap { try? $0.text() }) ?? []
+    }
+    
+    /// Parses an integer (stripping commas) from the first element matching `selector`.
+    func firstInt(_ selector: String) -> Int? {
+        AO3Parser.parseInt(firstText(selector))
+    }
+    
+    /// Returns the attribute value of the first element matching `selector`.
+    func firstAttr(_ selector: String, _ attribute: String) -> String? {
+        guard let val = try? select(selector).first()?.attr(attribute), !val.isEmpty else { return nil }
+        return val
+    }
+}
