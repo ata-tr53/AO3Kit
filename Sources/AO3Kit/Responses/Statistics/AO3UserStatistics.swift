@@ -44,7 +44,7 @@ public struct AO3FandomStatistics: Identifiable, Sendable, Codable, Hashable {
     public var works: [AO3WorkStatistics]
 }
 
-public struct AO3WorkStatistics: Identifiable, Sendable, Codable, Hashable {
+public struct AO3WorkStatistics: Identifiable, Sendable, Codable, Hashable, AO3FicModel {
     public let id: Int // workID
     public var workTitle: String
     
@@ -66,4 +66,7 @@ public struct AO3WorkStatistics: Identifiable, Sendable, Codable, Hashable {
             "WordCount": self.wordCount
         ]
     }
+    
+    public var displayName: String { self.workTitle }
+    public static var responseType: ResponseType { .work }
 }

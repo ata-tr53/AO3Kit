@@ -26,6 +26,7 @@ public enum AO3ClientError: Error {
     case pseudNotFound
     case noSubscription
     case systemOutage
+    case notImplemented
 }
 
 extension AO3ClientError: LocalizedError {
@@ -77,10 +78,13 @@ extension AO3ClientError: LocalizedError {
             return String(localized: "Pseud could not be found.")
             
         case .noSubscription:
-            return String(localized: "This target is not subscribed already")
+            return String(localized: "This target is not subscribed already.")
             
         case .systemOutage:
             return String(localized: "AO3 is experiencing issues, please try again later.")
+            
+        case .notImplemented:
+            return String(localized: "This functionality is not implemented yet.")
         }
     }
 }

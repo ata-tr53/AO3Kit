@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftSoup
+import OSLog
 
 internal extension AO3Client {
     /// Posts a new comment or replies to an existing one using the Pseud's display name.
@@ -24,8 +25,9 @@ internal extension AO3Client {
         let csrfToken = try AO3Parser.parseCSRFToken(from: pageHTML)
         
         let pseudMap = try AO3Parser.parsePseudIDs(from: pageHTML)
-        print(pseudMap)
-        print(pseudName)
+        
+        Logger.network.log("Pseuds: \n \(pseudMap) \n\n \(pseudName)")
+        
         guard let pseudIntID = pseudMap[pseudName] else {
             throw AO3ClientError.pseudNotFound
         }
@@ -58,9 +60,9 @@ internal extension AO3Client {
             referer: chapterURL
         )
         
-        if responseHTML.contains("errorExplanation") || responseHTML.contains("error") {
-            print("⚠️ AO3 returned a silent error in the HTML. Dumping HTML to console:")
-            print(responseHTML)
+        if responseHTML.contains("errorExplanation") {
+            Logger.network.error("⚠️ AO3 returned a silent error in the HTML. Dumping HTML to console: \n \(responseHTML)")
+            throw AO3ClientError.invalidData
         }
 
         await cache.invalidate(containing: String(chapterID))

@@ -5,7 +5,7 @@
 //  Created by İsmail Ata Bayraktutan on 7.10.2026.
 //
 
-public protocol AO3Response {
+public protocol AO3Response: Sendable, Codable, Hashable {
     static var responseType: ResponseType { get }
 }
 

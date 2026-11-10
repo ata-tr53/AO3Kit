@@ -10,11 +10,13 @@ public struct SeriesAPI: Sendable {
     internal let client: AO3Client
     
     public func metadata(for id: Int, fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> AO3Series {
-        try await client.fetchSeries(for: id, fallbackStrategy: fallbackStrategy)
+        return try await client.fetchCachedItem(endpoint: .series(id: id, route: .main), fallbackStrategy: fallbackStrategy) { html in
+            try AO3Parser.parseSeries(html: html, seriesID: id)
+        }
     }
     
     public func metadata<Series: AO3SeriesModel>(for series: Series, fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> AO3Series {
-        try await client.fetchSeries(for: series.id, fallbackStrategy: fallbackStrategy)
+        try await self.metadata(for: series.id, fallbackStrategy: fallbackStrategy)
     }
     
 }

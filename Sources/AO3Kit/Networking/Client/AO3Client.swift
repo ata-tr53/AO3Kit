@@ -532,7 +532,7 @@ public final class AO3Client: Sendable {
         }
         
         guard !isAdultWarningPage(html: html) else {
-            print("❌ AO3 adult content warning blocked fetch.")
+            Logger.network.error("❌ AO3 adult content warning blocked fetch.")
             throw AO3ClientError.adultWarningBlocked
         }
         

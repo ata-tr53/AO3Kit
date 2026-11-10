@@ -44,4 +44,33 @@ public extension AO3Parser {
         }
     }
     
+    // MARK: - Active Subscription ID Extraction
+    
+    internal static func parseSubscriptionID(from document: Document) throws -> Int? {
+        guard let subscriptionForm = try document.select("form:has(input[name=subscription[subscribable_id]])").first() else {
+            return nil
+        }
+        
+        let submitValue = subscriptionForm.firstAttr("input[type=submit]", "value")?.lowercased()
+        guard submitValue == "unsubscribe" else {
+            return nil
+        }
+        
+        // 1. Try extracting ID from the form's id attribute (e.g., id="edit_subscription_123456")
+        if let formId = try? subscriptionForm.attr("id"),
+           let match = formId.range(of: #"\d+"#, options: .regularExpression),
+           let id = Int(formId[match]) {
+            return id
+        }
+        
+        // 2. Fallback to extracting the trailing ID from the form's action URL (e.g., /users/{username}/subscriptions/123456)
+        if let actionUrl = try? subscriptionForm.attr("action"),
+           let lastComponent = actionUrl.split(separator: "/").last,
+           let id = Int(lastComponent) {
+            return id
+        }
+        
+        return nil
+    }
+    
 }

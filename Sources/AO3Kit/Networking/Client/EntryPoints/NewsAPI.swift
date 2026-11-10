@@ -10,13 +10,22 @@ public struct NewsAPI: Sendable {
     internal let client: AO3Client
     
     public func post(for id: Int, fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> AO3AdminPost {
-        try await client.fetchAdminPost(for: id, fallbackStrategy: fallbackStrategy)
+        return try await client.fetchCachedItem(endpoint: .news(id: id), fallbackStrategy: fallbackStrategy) { html in
+            try AO3Parser.parseAdminPost(html: html)
+        }
     }
     
     // MARK: Pagination
     
     public func page(page: Int = 1, fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> AO3PaginatedResult<AO3AdminPost> {
-        try await client.fetchAdminPostsPage(page: page, fallbackStrategy: fallbackStrategy)
+        
+        return try await client.fetchPaginated(
+            endpoint: .news(id: nil, route: .main),
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseAdminPosts
+        )
+        
     }
     
     public func all(
@@ -24,6 +33,14 @@ public struct NewsAPI: Sendable {
         fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
         progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
     ) async throws -> [AO3AdminPost] {
-        try await client.fetchAllAdminPosts(maxPages: maxPages, fallbackStrategy: fallbackStrategy, progressHandler: progressHandler)
+        
+        return try await client.fetchAllItems(
+            endpoint: .news(id: nil, route: .main),
+            maxPages: maxPages,
+            progressHandler: progressHandler,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseAdminPosts
+        )
+        
     }
 }

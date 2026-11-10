@@ -7,6 +7,7 @@
 
 import SwiftSoup
 import Foundation
+import OSLog
 
 public struct AO3Parser {
     
@@ -189,7 +190,7 @@ public struct AO3Parser {
                 }
             }
         } catch {
-            print("⚠️ Failed to extract work skin CSS: \(error)")
+            Logger.parser.error("⚠️ Failed to extract work skin CSS: \(error)")
         }
         return nil
     }

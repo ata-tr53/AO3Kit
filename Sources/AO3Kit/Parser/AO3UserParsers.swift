@@ -95,19 +95,17 @@ public extension AO3Parser {
     /// /users/[id]/pseuds
     static func parseUserPseuds(html: String) throws -> [AO3AuthorPseudLink] {
         try parseElements(html: html, selector: "li.user.pseud.picture.blurb.group") { element in
-            guard let pseudName = element.firstText("h4.heading a[href*='/pseuds/']") else {
+            guard let nameLink = try element.select("h4.heading a[href*='/pseuds/']").first(),
+                  let authorLink = parseAuthorLink(from: nameLink) else {
                 return nil
             }
             let workCountText = element.firstText("h5.heading a[href$='/works']")?.replacingOccurrences(of: " works", with: "")
-            let workCount = parseInt(workCountText)
-            let icon = parseImage(from: try element.select("div.icon img.icon").first())
-            let summaryHTML = try element.select("blockquote.userstuff").first()?.html()
-            
             return AO3AuthorPseudLink(
-                pseudName: pseudName,
-                summary: summaryHTML,
-                icon: icon,
-                workCount: workCount
+                username: authorLink.id,
+                pseudName: authorLink.displayedName,
+                summary: try element.select("blockquote.userstuff").first()?.html(),
+                icon: parseImage(from: try element.select("div.icon img.icon").first()),
+                workCount: parseInt(workCountText)
             )
         }
     }

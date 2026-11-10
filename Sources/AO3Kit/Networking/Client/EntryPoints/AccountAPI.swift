@@ -32,7 +32,14 @@ public struct AccountAPI: Sendable {
     
     public func statistics(fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> AO3UserStatistics {
         let username = try await client.resolveCurrentUsername()
-        return try await client.fetchUserStatistics(for: username, fallbackStrategy: fallbackStrategy)
+        
+        return try await client.fetchCachedItem(
+            endpoint: .user(username: username, route: .stats),
+            fallbackStrategy: fallbackStrategy
+        ) { html in
+            try AO3Parser.parseUserStatistics(html: html, username: username)
+        }
+        
     }
     
     // MARK: Inbox
@@ -42,7 +49,14 @@ public struct AccountAPI: Sendable {
         fallbackStrategy: AO3CacheFallbackStrategy = .useCache
     ) async throws -> AO3PaginatedResult<AO3Notification> {
         let username = try await client.resolveCurrentUsername()
-        return try await client.fetchUserInboxPage(for: username, page: page, fallbackStrategy: fallbackStrategy)
+        
+        return try await client.fetchPaginated(
+            endpoint: .user(username: username, route: .inbox),
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseInbox
+        )
+        
     }
     
     public func allInbox(
@@ -51,12 +65,15 @@ public struct AccountAPI: Sendable {
         progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
     ) async throws -> [AO3Notification] {
         let username = try await client.resolveCurrentUsername()
-        return try await client.fetchAllUserInbox(
-            for: username,
+        
+        return try await client.fetchAllItems(
+            endpoint: .user(username: username, route: .inbox),
             maxPages: maxPages,
+            progressHandler: progressHandler,
             fallbackStrategy: fallbackStrategy,
-            progressHandler: progressHandler
+            parser: AO3Parser.parseInbox
         )
+        
     }
     
     public func manageInbox(commentIDs: [Int], action: AO3InboxAction) async throws {

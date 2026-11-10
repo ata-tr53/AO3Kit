@@ -28,6 +28,9 @@ public extension AO3Client {
     
     /// Authenticated session management, inbox, reading history, subscriptions, stats, and muting/blocking.
     var account: AccountAPI { AccountAPI(client: self) }
+    
+    /// AO3 Search Functionality
+    var search: SearchAPI { SearchAPI(client: self) }
 }
 
 

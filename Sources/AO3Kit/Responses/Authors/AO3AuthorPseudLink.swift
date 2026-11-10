@@ -7,17 +7,18 @@
 
 import Foundation
 
-public struct AO3AuthorPseudLink: Codable, Sendable, Identifiable, AO3AuthorModel {
-    public var username: String { self.pseudName }
-    public var id: String { self.pseudName }
+public struct AO3AuthorPseudLink: Codable, Sendable, Hashable, Identifiable, AO3AuthorModel {
+    public var id: String { "\(username)/\(pseudName)" }
     
+    /// The parent AO3 account username (used for `/users/{username}` endpoints).
+    public var username: String
+    
+    /// The display name of the pseudonym itself.
     public var pseudName: String
     
     public var summary: String?
-    
     public var icon: AO3Image?
     public var workCount: Int?
     
     public static var responseType: ResponseType { return .user }
-    
 }
