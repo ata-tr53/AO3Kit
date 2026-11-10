@@ -8,7 +8,7 @@
 import Foundation
 import SwiftSoup
 
-public extension AO3Client {
+internal extension AO3Client {
     
     // MARK: - Session Management
     
@@ -24,6 +24,12 @@ public extension AO3Client {
     
     /// Destroys the current user session by deleting AO3 authentication cookies.
     func logout() {
+        cachedCSRFToken = nil
+        cachedUsername = nil
+        Task {
+            await cache.invalidate(containing: "Homepage")
+        }
+        
         guard let url = URL(string: "https://archiveofourown.org"),
               let cookieStorage = session.configuration.httpCookieStorage,
               let cookies = cookieStorage.cookies(for: url) else {
@@ -40,17 +46,18 @@ public extension AO3Client {
     
     /// Fetches the currently authenticated user's basic info, including their profile picture.
     func fetchCurrentUser(fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> AO3AuthorLink {
-        let cacheKey = "Homepage"
-        
-        return try await fetchCachedItem(url: URL(string: "https://archiveofourown.org/"), cacheKey: cacheKey, fallbackStrategy: fallbackStrategy) { html in
+        return try await fetchCachedItem(
+            endpoint: .home,
+            cacheKey: "Homepage",
+            fallbackStrategy: fallbackStrategy
+        ) { html in
             try AO3Parser.parseCurrentUser(from: html)
         }
     }
     
     /// Fetches the full profile metadata for the currently authenticated user.
     func fetchCurrentUserProfile(fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> AO3AuthorMetadata {
-        let currentUser = try await fetchCurrentUser()
-        
+        let currentUser = try await fetchCurrentUser(fallbackStrategy: fallbackStrategy)
         return try await fetchUserProfile(for: currentUser, fallbackStrategy: fallbackStrategy)
     }
 

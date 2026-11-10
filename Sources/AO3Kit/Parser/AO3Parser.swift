@@ -177,8 +177,12 @@ public struct AO3Parser {
     // MARK: - CSRF Token Parser
     
     public static func parseCSRFToken(from html: String) throws -> String {
+        if let token = extractCSRFTokenFast(from: html) {
+            return token
+        }
         return try autoreleasepool {
             let doc = try SwiftSoup.parse(html)
+            defer { doc.empty() }
             
             guard let tokenTag = try doc.select("meta[name=csrf-token]").first() else {
                 throw AO3ClientError.invalidData
@@ -191,6 +195,47 @@ public struct AO3Parser {
             
             return token
         }
+    }
+    
+    internal static func extractCSRFTokenFast(from html: String) -> String? {
+        let headEnd = html.range(of: "</head>", options: .caseInsensitive)?.lowerBound ?? html.endIndex
+        let headSlice = html[..<headEnd]
+        
+        guard let metaRange = headSlice.range(of: #"name="csrf-token""#),
+              let lineStart = headSlice[..<metaRange.lowerBound].range(of: "<meta", options: .backwards)?.lowerBound,
+              let tagEnd = headSlice[metaRange.upperBound...].range(of: ">")?.upperBound else {
+            return nil
+        }
+        
+        let metaTag = headSlice[lineStart..<tagEnd]
+        guard let contentStart = metaTag.range(of: #"content=""#)?.upperBound,
+              let contentEnd = metaTag[contentStart...].firstIndex(of: "\"") else {
+            return nil
+        }
+        
+        let token = String(metaTag[contentStart..<contentEnd])
+        return token.isEmpty ? nil : token
+    }
+    
+    //MARK: - Logged In User Fast Parser
+    
+    /// Scans the top of an AO3 HTML document for the logged-in username inside `#greeting` without building a DOM tree.
+    internal static func extractCurrentUsernameFast(from html: String) -> String? {
+        guard let greetingRange = html.range(of: #"id="greeting""#) else {
+            return nil
+        }
+        
+        let searchEnd = html.index(greetingRange.upperBound, offsetBy: 1500, limitedBy: html.endIndex) ?? html.endIndex
+        let greetingSlice = html[greetingRange.upperBound..<searchEnd]
+        
+        guard let hrefStart = greetingSlice.range(of: #"href="/users/"#)?.upperBound,
+              let hrefEnd = greetingSlice[hrefStart...].firstIndex(where: { $0 == "\"" || $0 == "/" || $0 == "?" }) else {
+            return nil
+        }
+        
+        let rawUsername = String(greetingSlice[hrefStart..<hrefEnd])
+        let decoded = rawUsername.removingPercentEncoding ?? rawUsername
+        return decoded.isEmpty ? nil : decoded
     }
 
 }

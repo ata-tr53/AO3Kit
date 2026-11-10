@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct AO3Series: Identifiable, Sendable, Codable, AO3Subscribable {
+public struct AO3Series: Identifiable, Sendable, Codable, AO3Subscribable, AO3SeriesModel {
     public var id: Int
     
     public var name: String

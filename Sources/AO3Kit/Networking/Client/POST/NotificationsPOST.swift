@@ -6,43 +6,38 @@
 //
 
 import Foundation
-import SwiftSoup
 
-public extension AO3Client {
+internal extension AO3Client {
     
     // MARK: - Inbox Management
     
-    func manageInbox(for username: String, commentIDs: [Int], action: AO3InboxAction) async throws {
+    func manageInbox(commentIDs: [Int], action: AO3InboxAction) async throws {
         guard !commentIDs.isEmpty else { return }
+        let username = try await resolveCurrentUsername()
         
         guard let inboxURL = AO3Endpoint.user(username: username, route: .inbox).url() else {
             throw AO3ClientError.invalidURL
         }
         
-        let inboxHTML = try await performRequest(url: inboxURL, method: .get)
-        let csrfToken = try AO3Parser.parseCSRFToken(from: inboxHTML)
-        
-        var queryItems = [
-            URLQueryItem(name: "utf8", value: "✓"),
-            URLQueryItem(name: "_method", value: "put"),
-            URLQueryItem(name: "authenticity_token", value: csrfToken),
-            URLQueryItem(name: action.rawValue, value: action.buttonValue)
-        ]
-
-        for id in commentIDs {
-            queryItems.append(URLQueryItem(name: "inbox_comments[]", value: String(id)))
-        }
-
-        let responseHTML = try await performFormPost(
+        let responseHTML = try await performAuthenticatedFormPost(
             url: inboxURL,
-            formItems: queryItems,
-            referer: inboxURL
-        )
+            tokenFallbackURL: inboxURL
+        ) { csrfToken in
+            var queryItems = [
+                URLQueryItem(name: "utf8", value: "✓"),
+                URLQueryItem(name: "_method", value: "put"),
+                URLQueryItem(name: "authenticity_token", value: csrfToken),
+                URLQueryItem(name: action.rawValue, value: action.buttonValue)
+            ]
+            for id in commentIDs {
+                queryItems.append(URLQueryItem(name: "inbox_comments[]", value: String(id)))
+            }
+            return queryItems
+        }
         
         guard responseHTML.contains("Inbox successfully updated") || responseHTML.contains("Item(s) deleted") else {
             throw AO3ClientError.invalidData
         }
-        
         
         await cache.invalidate(containing: "inbox")
     }
@@ -61,4 +56,3 @@ public enum AO3InboxAction: String, Sendable {
         }
     }
 }
-

@@ -6,7 +6,7 @@
 //
 
 
-public struct AO3SeriesLink: Identifiable, Sendable, Codable, AO3Response {
+public struct AO3SeriesLink: Identifiable, Sendable, Codable, AO3SeriesModel {
     public var id: Int
     public var name: String
     public var partIndex: Int?

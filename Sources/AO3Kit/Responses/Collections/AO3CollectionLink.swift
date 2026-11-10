@@ -6,9 +6,10 @@
 //
 
 
-public struct AO3CollectionLink: Identifiable, Sendable, Codable, AO3Response {
+public struct AO3CollectionLink: Identifiable, Sendable, Codable, AO3CollectionModel {
     public var id: String
-    public var name: String
+    
+    public var displayName: String
     
     public static var responseType: ResponseType { return .collection }
 }

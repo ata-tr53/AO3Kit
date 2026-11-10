@@ -7,7 +7,7 @@
 
 import Foundation
 
-public extension AO3Client {
+internal extension AO3Client {
     
     func fetchAdminPostsPage(page: Int = 1, fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> AO3PaginatedResult<AO3AdminPost> {
         

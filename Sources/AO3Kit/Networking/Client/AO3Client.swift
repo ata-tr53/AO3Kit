@@ -5,6 +5,7 @@
 //  Created by İsmail Ata Bayraktutan on 2.08.2026.
 //
 
+import Synchronization
 import Foundation
 import OSLog
 
@@ -59,6 +60,38 @@ public final class AO3Client: Sendable {
         "archive.transformativeworks.org",
         "insecure.archiveofourown.org"
     ]
+    
+    //MARK: CSRF Tokens
+    
+    @ObservationIgnored
+    private let csrfTokenLock = Mutex<String?>(nil)
+    
+    internal var cachedCSRFToken: String? {
+        get { csrfTokenLock.withLock { $0 } }
+        set { csrfTokenLock.withLock { $0 = newValue } }
+    }
+    
+    //MARK: Current User
+    
+    @ObservationIgnored
+    private let usernameLock = Mutex<String?>(nil)
+
+    public internal(set) var cachedUsername: String? {
+        get { usernameLock.withLock { $0 } }
+        set { usernameLock.withLock { $0 = newValue } }
+    }
+
+    internal func resolveCurrentUsername() async throws -> String {
+        if let existing = cachedUsername {
+            return existing
+        }
+        guard isLoggedIn else {
+            throw AO3ClientError.requiresRegistration
+        }
+        let user = try await fetchCurrentUser(fallbackStrategy: .useCache)
+        self.cachedUsername = user.id
+        return user.id
+    }
     
     //-----------------------------------------------------------------------------------
     
@@ -333,6 +366,51 @@ public final class AO3Client: Sendable {
     
     //MARK: POST Helpers
     
+    internal func resolveCSRFToken(fallbackURL: URL, forceRefresh: Bool = false) async throws -> String {
+        if !forceRefresh, let existing = cachedCSRFToken {
+            return existing
+        }
+        let html = try await performRequest(url: fallbackURL, method: .get)
+        let token = try AO3Parser.parseCSRFToken(from: html)
+        self.cachedCSRFToken = token
+        return token
+    }
+    
+    internal func performAuthenticatedFormPost(
+        url: URL,
+        tokenFallbackURL: URL,
+        includeXHRHeaders: Bool = false,
+        additionalHeaders: [String: String]? = nil,
+        buildFormItems: (_ csrfToken: String) -> [URLQueryItem]
+    ) async throws -> String {
+        for isRetry in [false, true] {
+            let token = try await resolveCSRFToken(fallbackURL: tokenFallbackURL, forceRefresh: isRetry)
+            var headers = additionalHeaders ?? [:]
+            if includeXHRHeaders {
+                headers["X-Requested-With"] = "XMLHttpRequest"
+                headers["X-CSRF-Token"] = token
+                headers["Origin"] = "https://archiveofourown.org"
+            }
+            
+            do {
+                let responseHTML = try await performFormPost(
+                    url: url,
+                    formItems: buildFormItems(token),
+                    referer: tokenFallbackURL,
+                    additionalHeaders: headers
+                )
+                
+                if !isRetry && responseHTML.contains("Authenticity token") {
+                    continue
+                }
+                return responseHTML
+            } catch let urlError as URLError where !isRetry && urlError.code.rawValue == 422 {
+                continue
+            }
+        }
+        throw AO3ClientError.invalidData
+    }
+    
     internal func performFormPost(
         url: URL,
         formItems: [URLQueryItem],
@@ -402,7 +480,7 @@ public final class AO3Client: Sendable {
         fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
         parser: @Sendable @escaping (String) async throws -> T
     ) async throws -> T {
-        guard let url = endpoint.url() else {
+        guard let url = endpoint.url(bypassAdultBlock: self.bypassAdultBlock) else {
             throw AO3ClientError.invalidURL
         }
         
@@ -441,6 +519,16 @@ public final class AO3Client: Sendable {
         
         guard let html = String(data: data, encoding: .utf8) else {
             throw URLError(.badServerResponse)
+        }
+        
+        if let freshToken = AO3Parser.extractCSRFTokenFast(from: html) {
+            self.cachedCSRFToken = freshToken
+        }
+        
+        if let detectedUser = AO3Parser.extractCurrentUsernameFast(from: html) {
+            self.cachedUsername = detectedUser
+        } else if html.contains(#"id="login""#) {
+            self.cachedUsername = nil
         }
         
         guard !isAdultWarningPage(html: html) else {

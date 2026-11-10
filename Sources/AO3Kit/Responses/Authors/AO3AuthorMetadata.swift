@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct AO3AuthorMetadata: Identifiable, Sendable, Codable, Hashable, AO3Subscribable, AO3Mutable, AO3Blockable {
+public struct AO3AuthorMetadata: Identifiable, Sendable, Codable, Hashable, AO3Subscribable, AO3Mutable, AO3Blockable, AO3AuthorModel {
     
     public var id: Int
     

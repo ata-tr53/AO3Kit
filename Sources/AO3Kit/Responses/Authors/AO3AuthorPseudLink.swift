@@ -7,7 +7,8 @@
 
 import Foundation
 
-public struct AO3AuthorPseudLink: Codable, Sendable, Identifiable, AO3Response {
+public struct AO3AuthorPseudLink: Codable, Sendable, Identifiable, AO3AuthorModel {
+    public var username: String { self.pseudName }
     public var id: String { self.pseudName }
     
     public var pseudName: String

@@ -8,7 +8,7 @@
 import Foundation
 
 
-public struct AO3AuthorLink: Identifiable, Sendable, Codable, Hashable, AO3Response {
+public struct AO3AuthorLink: Identifiable, Sendable, Codable, Hashable, AO3AuthorModel {
     /// /users/[id]/pseuds/[pseudID]
     public var id: String
     
@@ -33,6 +33,8 @@ public struct AO3AuthorLink: Identifiable, Sendable, Codable, Hashable, AO3Respo
         return self.profilePicture?.url ?? URL(string: "https://archiveofourown.org/images/skins/iconsets/default/icon_user.png")
     }
     
+    public var username: String { self.id }
+    
     public init(id: String, pseudID: String, displayedName: String, profilePicture: AO3Image? = nil) {
         self.id = id
         self.pseudID = pseudID
@@ -41,7 +43,7 @@ public struct AO3AuthorLink: Identifiable, Sendable, Codable, Hashable, AO3Respo
     }
 }
 
-public struct AO3MutedBlockedLink: Identifiable, Sendable, Codable, Hashable, AO3Response, AO3Mutable, AO3Blockable {
+public struct AO3MutedBlockedLink: Identifiable, Sendable, Codable, Hashable, AO3AuthorModel, AO3Mutable, AO3Blockable {
     public var id: String { return authorLink.id }
     public var username: String { return authorLink.id }
     public static var responseType: ResponseType { return AO3AuthorLink.responseType }

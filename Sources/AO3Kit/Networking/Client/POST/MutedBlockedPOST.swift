@@ -8,9 +8,9 @@
 import Foundation
 import SwiftSoup
 
-public extension AO3Client {
+internal extension AO3Client {
     
-    internal func executeActionViaConfirmPage(confirmURLString: String) async throws {
+    private func executeActionViaConfirmPage(confirmURLString: String) async throws {
         guard let confirmURL = URL(string: confirmURLString) else {
             throw AO3ClientError.invalidURL
         }
@@ -55,15 +55,18 @@ public extension AO3Client {
     
     // MARK: - Block / Unblock POST
     
-    func blockUser<User: AO3Blockable>(currentUser: String, target: User) async throws {
+    func blockUser<User: AO3Blockable>(target: User) async throws {
+        let currentUser = try await resolveCurrentUsername()
+        
         await self.cache.invalidate(containing: target.username)
         await self.cache.invalidate(containing: "blocked")
         
         try await self.blockUser(currentUser: currentUser, targetUser: target.username)
     }
     
-    func unblockUser<User: AO3Blockable>(currentUser: String, target: User) async throws {
+    func unblockUser<User: AO3Blockable>(target: User) async throws {
         guard let actionID = target.unblockActionID else { throw AO3ClientError.invalidEndpoint }
+        let currentUser = try await resolveCurrentUsername()
         
         await self.cache.invalidate(containing: target.username)
         await self.cache.invalidate(containing: "blocked")
@@ -71,27 +74,30 @@ public extension AO3Client {
         try await self.unblockUser(currentUser: currentUser, actionID: actionID)
     }
     
-    internal func blockUser(currentUser: String, targetUser: String) async throws {
+    private func blockUser(currentUser: String, targetUser: String) async throws {
         let urlString = "https://archiveofourown.org/users/\(currentUser)/blocked/users/confirm_block?blocked_id=\(targetUser)"
         try await executeActionViaConfirmPage(confirmURLString: urlString)
     }
     
-    internal func unblockUser(currentUser: String, actionID: Int) async throws {
+    private func unblockUser(currentUser: String, actionID: Int) async throws {
         let urlString = "https://archiveofourown.org/users/\(currentUser)/blocked/users/\(actionID)/confirm_unblock"
         try await executeActionViaConfirmPage(confirmURLString: urlString)
     }
     
     // MARK: - Mute / Unmute POST
     
-    func muteUser<User: AO3Mutable>(currentUser: String, target: User) async throws {
+    func muteUser<User: AO3Mutable>(target: User) async throws {
+        let currentUser = try await resolveCurrentUsername()
+        
         await self.cache.invalidate(containing: target.username)
         await self.cache.invalidate(containing: "muted")
         
         try await self.muteUser(currentUser: currentUser, targetUser: target.username)
     }
     
-    func unmuteUser<User: AO3Mutable>(currentUser: String, target: User) async throws {
+    func unmuteUser<User: AO3Mutable>(target: User) async throws {
         guard let actionID = target.unmuteActionID else { throw AO3ClientError.invalidEndpoint }
+        let currentUser = try await resolveCurrentUsername()
         
         await self.cache.invalidate(containing: target.username)
         await self.cache.invalidate(containing: "muted")
@@ -99,12 +105,12 @@ public extension AO3Client {
         try await self.unmuteUser(currentUser: currentUser, actionID: actionID)
     }
     
-    internal func muteUser(currentUser: String, targetUser: String) async throws {
+    private func muteUser(currentUser: String, targetUser: String) async throws {
         let urlString = "https://archiveofourown.org/users/\(currentUser)/muted/users/confirm_mute?muted_id=\(targetUser)"
         try await executeActionViaConfirmPage(confirmURLString: urlString)
     }
     
-    internal func unmuteUser(currentUser: String, actionID: Int) async throws {
+    private func unmuteUser(currentUser: String, actionID: Int) async throws {
         let urlString = "https://archiveofourown.org/users/\(currentUser)/muted/users/\(actionID)/confirm_unmute"
         try await executeActionViaConfirmPage(confirmURLString: urlString)
     }

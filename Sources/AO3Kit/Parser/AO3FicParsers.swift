@@ -77,7 +77,7 @@ public extension AO3Parser {
             let collections: [AO3CollectionLink] = try doc.select("dd.collections a").array().compactMap { el in
                 let href = try el.attr("href")
                 guard let id = href.components(separatedBy: "/").last else { return nil }
-                return AO3CollectionLink(id: id.removingPercentEncoding ?? id, name: try el.text())
+                return AO3CollectionLink(id: id.removingPercentEncoding ?? id, displayName: try el.text())
             }
             
             // Stats & Dates

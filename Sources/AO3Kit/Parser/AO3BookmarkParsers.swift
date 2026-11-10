@@ -83,7 +83,7 @@ public extension AO3Parser {
         let collections: [AO3CollectionLink] = try collectionElements.compactMap { el in
             let colHref = try el.attr("href")
             guard let colID = colHref.components(separatedBy: "/").last else { return nil }
-            return AO3CollectionLink(id: colID.removingPercentEncoding ?? colID, name: try el.text())
+            return AO3CollectionLink(id: colID.removingPercentEncoding ?? colID, displayName: try el.text())
         }
         
         return AO3FicBookmark(
@@ -147,7 +147,7 @@ public extension AO3Parser {
                     let collections: [AO3CollectionLink] = try collectionElements.compactMap { el in
                         let colHref = try el.attr("href")
                         guard let colID = colHref.components(separatedBy: "/").last else { return nil }
-                        return AO3CollectionLink(id: colID.removingPercentEncoding ?? colID, name: try el.text())
+                        return AO3CollectionLink(id: colID.removingPercentEncoding ?? colID, displayName: try el.text())
                     }
                     
                     return AO3BookmarkPreview(

@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct AO3FicPreview: Identifiable, Sendable, Codable, AO3Response {
+public struct AO3FicPreview: Identifiable, Sendable, Codable, AO3FicModel {
     public var id: Int
     
     public var displayName: String
@@ -46,8 +46,9 @@ public struct AO3FicPreview: Identifiable, Sendable, Codable, AO3Response {
 }
 
 
-public struct AO3HistoryFicPreview: Identifiable, Sendable, Codable, AO3Response {
+public struct AO3HistoryFicPreview: Identifiable, Sendable, Codable, AO3FicModel {
     public var id: Int { self.preview.id }
+    public var displayName: String { self.preview.displayName }
     public static var responseType: ResponseType { return AO3FicPreview.responseType }
     
     public var preview: AO3FicPreview

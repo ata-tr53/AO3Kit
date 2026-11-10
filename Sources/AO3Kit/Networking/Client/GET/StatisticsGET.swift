@@ -7,7 +7,7 @@
 
 import Foundation
 
-public extension AO3Client {
+internal extension AO3Client {
     
     func fetchUserStatistics(
         for username: String,

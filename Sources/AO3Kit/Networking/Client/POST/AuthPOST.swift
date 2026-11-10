@@ -7,7 +7,7 @@
 
 import Foundation
 
-public extension AO3Client {
+internal extension AO3Client {
     
     /// Authenticates the client with AO3.
     /// - Returns: `true` if login succeeds. Throws an error if credentials fail or the network drops.
@@ -17,6 +17,7 @@ public extension AO3Client {
             throw AO3ClientError.invalidURL
         }
         
+        cachedCSRFToken = nil
         let loginPageHTML = try await performRequest(url: loginURL, method: .get)
         let csrfToken = try AO3Parser.parseCSRFToken(from: loginPageHTML)
         
@@ -34,6 +35,8 @@ public extension AO3Client {
         )
         
         if responseHTML.contains("Successfully logged in") || responseHTML.contains("Hi, \(username)!") {
+            await self.cache.invalidate(containing: "Homepage")
+            self.cachedUsername = username
             return true
         } else if responseHTML.contains("Invalid user name or password") {
             throw AO3ClientError.invalidCredentials
@@ -45,65 +48,66 @@ public extension AO3Client {
     // MARK: History & Marked for Later
     
     func toggleMarkForLater(workID: Int, isMarkingForLater: Bool) async throws {
-        
-        guard let getUrl = AO3Endpoint.work(id: workID, route: .main).url() else { throw AO3ClientError.invalidURL }
-        let html = try await self.performRequest(url: getUrl, method: .get)
-        let token = try AO3Parser.parseCSRFToken(from: html)
-        
         let route: AO3WorkRoute = isMarkingForLater ? .markForLater : .markAsRead
-        guard let postUrl = AO3Endpoint.work(id: workID, route: route).url() else { throw AO3ClientError.invalidURL }
+        guard let workURL = AO3Endpoint.work(id: workID, route: .main).url(bypassAdultBlock: bypassAdultBlock),
+              let postURL = AO3Endpoint.work(id: workID, route: route).url() else {
+            throw AO3ClientError.invalidURL
+        }
         
-        _ = try await performFormPost(
-            url: postUrl,
-            formItems: [
-                URLQueryItem(name: "authenticity_token", value: token),
+        _ = try await performAuthenticatedFormPost(
+            url: postURL,
+            tokenFallbackURL: workURL
+        ) { csrfToken in
+            [
+                URLQueryItem(name: "authenticity_token", value: csrfToken),
                 URLQueryItem(name: "_method", value: "patch")
-            ],
-            referer: getUrl
-        )
+            ]
+        }
         
         await self.cache.invalidate(containing: "readings")
         await self.cache.invalidate(containing: "\(workID)")
     }
 
     /// Removes a specific fic from the user's reading history.
-    func deleteFromHistory(username: String, readingID: Int) async throws {
+    func deleteFromHistory(readingID: Int) async throws {
+        let username = try await resolveCurrentUsername()
         
-        guard let getUrl = AO3Endpoint.user(username: username, route: .history(showToRead: false)).url() else { throw AO3ClientError.invalidURL }
-        let html = try await self.performRequest(url: getUrl, method: .get)
-        let token = try AO3Parser.parseCSRFToken(from: html)
+        guard let historyURL = AO3Endpoint.user(username: username, route: .history(showToRead: false)).url(),
+              let postURL = AO3Endpoint.user(username: username, route: .historyItem(id: readingID)).url() else {
+            throw AO3ClientError.invalidURL
+        }
         
-        guard let postUrl = AO3Endpoint.user(username: username, route: .historyItem(id: readingID)).url() else { throw AO3ClientError.invalidURL }
-        
-        _ = try await performFormPost(
-            url: postUrl,
-            formItems: [
-                URLQueryItem(name: "authenticity_token", value: token),
+        _ = try await performAuthenticatedFormPost(
+            url: postURL,
+            tokenFallbackURL: historyURL
+        ) { csrfToken in
+            [
+                URLQueryItem(name: "authenticity_token", value: csrfToken),
                 URLQueryItem(name: "_method", value: "delete"),
                 URLQueryItem(name: "reading", value: String(readingID))
-            ],
-            referer: getUrl
-        )
+            ]
+        }
         
         await self.cache.invalidate(containing: "\(username)/readings")
     }
 
-    /// Wipes the user's entire reading history.
-    func clearHistory(username: String) async throws {
+    /// Wipes the authenticated user's entire reading history.
+    func clearHistory() async throws {
+        let username = try await resolveCurrentUsername()
         
-        guard let getUrl = AO3Endpoint.user(username: username, route: .history(showToRead: false)).url() else { throw AO3ClientError.invalidURL }
-        let html = try await self.performRequest(url: getUrl, method: .get)
-        let token = try AO3Parser.parseCSRFToken(from: html)
+        guard let historyURL = AO3Endpoint.user(username: username, route: .history(showToRead: false)).url(),
+              let postURL = AO3Endpoint.user(username: username, route: .clearHistory).url() else {
+            throw AO3ClientError.invalidURL
+        }
         
-        guard let postUrl = AO3Endpoint.user(username: username, route: .clearHistory).url() else { throw AO3ClientError.invalidURL }
-        
-        _ = try await performFormPost(
-            url: postUrl,
-            formItems: [
-                URLQueryItem(name: "authenticity_token", value: token)
-            ],
-            referer: getUrl
-        )
+        _ = try await performAuthenticatedFormPost(
+            url: postURL,
+            tokenFallbackURL: historyURL
+        ) { csrfToken in
+            [
+                URLQueryItem(name: "authenticity_token", value: csrfToken)
+            ]
+        }
         
         await self.cache.invalidate(containing: "\(username)/readings")
     }

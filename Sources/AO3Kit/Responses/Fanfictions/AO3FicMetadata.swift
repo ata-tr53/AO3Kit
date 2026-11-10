@@ -10,7 +10,7 @@ import Foundation
 
 // MARK: Metadata Structure
 
-public struct AO3FicMetadata: Identifiable, Sendable, Codable, AO3Subscribable {
+public struct AO3FicMetadata: Identifiable, Sendable, Codable, AO3Subscribable, AO3FicModel {
     public var id: Int
     
     public var displayName: String

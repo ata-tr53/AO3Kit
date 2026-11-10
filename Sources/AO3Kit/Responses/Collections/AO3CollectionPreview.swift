@@ -8,7 +8,7 @@
 import Foundation
 
 
-public struct AO3CollectionPreview: Identifiable, Sendable, Codable, AO3Response {
+public struct AO3CollectionPreview: Identifiable, Sendable, Codable, AO3CollectionModel {
     /// The unique, URL-safe short name
     public var id: String
     

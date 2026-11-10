@@ -6,55 +6,52 @@
 //
 
 import Foundation
-import SwiftData
 
-public extension AO3Client {
+internal extension AO3Client {
     // MARK: - Subscription Management
     
-    func toggleSubscription<Target: AO3Subscribable>(for username: String, target: Target) async throws {
+    func toggleSubscription<Target: AO3Subscribable>(for target: Target) async throws {
         if target.isSubscribed {
-            try await self.deleteSubscription(for: username, target: target)
+            try await self.deleteSubscription(for: target)
         } else {
-            try await self.addSubscription(for: username, target: target)
+            try await self.addSubscription(for: target)
         }
     }
-    
-    func addSubscription<Target: AO3Subscribable>(for username: String, target: Target) async throws {
+
+    func addSubscription<Target: AO3Subscribable>(for target: Target) async throws {
+        let username = try await resolveCurrentUsername()
         try await self.addSubscription(for: username, targetID: target.subscribableID, targetType: target.responseType.rawValue)
         await cache.invalidate(containing: "\(target.subscribableID)")
     }
-    
-    func deleteSubscription<Target: AO3Subscribable>(for username: String, target: Target) async throws {
+
+    func deleteSubscription<Target: AO3Subscribable>(for target: Target) async throws {
         guard let subscriptionID = target.subscriptionRecordID else { throw AO3ClientError.noSubscription }
+        let username = try await resolveCurrentUsername()
         try await self.deleteSubscription(for: username, subscriptionID: subscriptionID)
-        
         await cache.invalidate(containing: "\(target.subscribableID)")
     }
-    
-    func deleteSubscription(for username: String, target: AO3Subscription) async throws {
+
+    func deleteSubscription(for target: AO3Subscription) async throws {
+        let username = try await resolveCurrentUsername()
         try await self.deleteSubscription(for: username, subscriptionID: target.id)
     }
     
     /// Creates a new subscription for a given element.
-    internal func addSubscription(for username: String, targetID: Int, targetType: String) async throws {
-        let endpoint: AO3Endpoint = AO3Endpoint.user(username: username, route: .subscriptions)
-        
-        guard let indexURL = endpoint.url() else {
+    private func addSubscription(for username: String, targetID: Int, targetType: String) async throws {
+        guard let indexURL = AO3Endpoint.user(username: username, route: .subscriptions).url() else {
             throw AO3ClientError.invalidURL
         }
         
-        let indexHTML = try await performRequest(url: indexURL, method: .get)
-        let csrfToken = try AO3Parser.parseCSRFToken(from: indexHTML)
-        
-        let responseHTML = try await performFormPost(
+        let responseHTML = try await performAuthenticatedFormPost(
             url: indexURL,
-            formItems: [
+            tokenFallbackURL: indexURL
+        ) { csrfToken in
+            [
                 URLQueryItem(name: "authenticity_token", value: csrfToken),
                 URLQueryItem(name: "subscription[subscribable_id]", value: String(targetID)),
                 URLQueryItem(name: "subscription[subscribable_type]", value: targetType)
-            ],
-            referer: indexURL
-        )
+            ]
+        }
         
         let successMessages = ["Successfully subscribed", "You are now following"]
         guard successMessages.contains(where: { responseHTML.contains($0) }) else {
@@ -65,25 +62,21 @@ public extension AO3Client {
         await cache.invalidate(containing: "subscription")
     }
     
-    internal func deleteSubscription(for username: String, subscriptionID: Int) async throws {
-        let endpoint: AO3Endpoint = AO3Endpoint.user(username: username, route: .subscriptions)
-        
-        guard let indexURL = endpoint.url(),
+    private func deleteSubscription(for username: String, subscriptionID: Int) async throws {
+        guard let indexURL = AO3Endpoint.user(username: username, route: .subscriptions).url(),
               let actionURL = AO3Endpoint.user(username: username, route: .deleteSubscription(id: subscriptionID)).url() else {
             throw AO3ClientError.invalidURL
         }
         
-        let indexHTML = try await performRequest(url: indexURL, method: .get)
-        let csrfToken = try AO3Parser.parseCSRFToken(from: indexHTML)
-        
-        let responseHTML = try await performFormPost(
+        let responseHTML = try await performAuthenticatedFormPost(
             url: actionURL,
-            formItems: [
+            tokenFallbackURL: indexURL
+        ) { csrfToken in
+            [
                 URLQueryItem(name: "_method", value: "delete"),
                 URLQueryItem(name: "authenticity_token", value: csrfToken)
-            ],
-            referer: indexURL
-        )
+            ]
+        }
         
         guard responseHTML.contains("Successfully deleted subscription") || responseHTML.contains("Subscription deleted") else {
             if !responseHTML.contains("edit_subscription_\(subscriptionID)") {
@@ -95,5 +88,4 @@ public extension AO3Client {
         await cache.invalidate(containing: username)
         await cache.invalidate(containing: "subscription")
     }
-
 }

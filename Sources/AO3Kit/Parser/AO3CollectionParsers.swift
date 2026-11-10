@@ -57,7 +57,7 @@ public extension AO3Parser {
                     let cleanID = parentID.removingPercentEncoding ?? parentID
                     parentCollection = AO3CollectionLink(
                         id: cleanID,
-                        name: cleanID
+                        displayName: cleanID
                     )
                 }
             }

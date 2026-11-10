@@ -8,7 +8,7 @@
 import Foundation
 import SwiftSoup
 
-public extension AO3Client {
+internal extension AO3Client {
     /// Posts a new comment or replies to an existing one using the Pseud's display name.
     func postComment(
         content: String,
@@ -66,19 +66,6 @@ public extension AO3Client {
         await cache.invalidate(containing: String(chapterID))
     }
 
-}
-
-internal extension Dictionary where Key == String, Value == String {
-    func percentEncoded() -> Data? {
-        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~ "))
-        
-        let parameterArray = self.map { (key, value) -> String in
-            let escapedKey = key.addingPercentEncoding(withAllowedCharacters: allowedCharacters)?.replacingOccurrences(of: " ", with: "+") ?? ""
-            let escapedValue = value.addingPercentEncoding(withAllowedCharacters: allowedCharacters)?.replacingOccurrences(of: " ", with: "+") ?? ""
-            return "\(escapedKey)=\(escapedValue)"
-        }
-        return parameterArray.joined(separator: "&").data(using: .utf8)
-    }
 }
 
 
