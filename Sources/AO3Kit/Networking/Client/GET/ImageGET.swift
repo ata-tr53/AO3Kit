@@ -1,0 +1,50 @@
+//
+//  ImageGET.swift
+//  AO3Kit
+//
+//  Created by İsmail Ata Bayraktutan on 11.11.2026.
+//
+
+import Foundation
+
+internal extension AO3Client {
+    
+    func fetchImageData(for url: URL, fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> Data {
+        let isAO3: Bool = url.isAO3
+        let key = url.absoluteString
+        let taskKey = "image_fetch_\(key)"
+        
+        var staleFallbackData: Data? = nil
+        
+        if fallbackStrategy != .bypassCache, let response: Data = await imageStore.data(forKey: key) {
+            
+            if fallbackStrategy == .prioritiseCache {
+                return response
+            }
+            
+            staleFallbackData = response
+        }
+        
+        do {
+            let result = try await taskTracker.track(key: key) {
+                var request = URLRequest(url: url)
+                request.setValue(self.userAgent, forHTTPHeaderField: "User-Agent")
+                
+                let (data, response) = try await self.session.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                    throw AO3ClientError.invalidResponse
+                }
+                
+                return data
+            }
+            try? await cache.set(result, forKey: key)
+            return result
+        } catch {
+            if fallbackStrategy == .useCache, let staleData = staleFallbackData {
+                return staleData
+            }
+            throw error
+        }
+    }
+    
+}

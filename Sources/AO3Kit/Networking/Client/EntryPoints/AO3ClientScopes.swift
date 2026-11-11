@@ -9,28 +9,31 @@ import Foundation
 
 public extension AO3Client {
     /// Work metadata, chapters, comments, kudos, and work lists across users, collections, and tags.
-    var works: WorksAPI { WorksAPI(client: self) }
+    var works: AO3WorksAPI { AO3WorksAPI(client: self) }
     
     /// Full fic bookmarks across users, collections, tags, and series, plus work bookmark previews.
-    var bookmarks: BookmarksAPI { BookmarksAPI(client: self) }
+    var bookmarks: AO3BookmarksAPI { AO3BookmarksAPI(client: self) }
     
     /// Public user profiles, pseuds, and user series.
-    var users: UsersAPI { UsersAPI(client: self) }
+    var users: AO3UsersAPI { AO3UsersAPI(client: self) }
     
     /// Collection profiles and subcollections.
-    var collections: CollectionsAPI { CollectionsAPI(client: self) }
+    var collections: AO3CollectionsAPI { AO3CollectionsAPI(client: self) }
     
     /// Series details and work lists.
-    var series: SeriesAPI { SeriesAPI(client: self) }
+    var series: AO3SeriesAPI { AO3SeriesAPI(client: self) }
     
     /// AO3 Admin Posts (news and announcements).
-    var news: NewsAPI { NewsAPI(client: self) }
+    var news: AO3NewsAPI { AO3NewsAPI(client: self) }
     
     /// Authenticated session management, inbox, reading history, subscriptions, stats, and muting/blocking.
-    var account: AccountAPI { AccountAPI(client: self) }
+    var account: AO3AccountAPI { AO3AccountAPI(client: self) }
     
     /// AO3 Search Functionality
-    var search: SearchAPI { SearchAPI(client: self) }
+    var search: AO3SearchAPI { AO3SearchAPI(client: self) }
+    
+    /// Fetching and caching image data for user avatars, collection icons, and embedded art.
+    var images: AO3ImagesAPI { AO3ImagesAPI(client: self) }
 }
 
 
@@ -40,6 +43,7 @@ public enum AO3WorkSource: Sendable, Equatable {
     case userGifts(username: String)
     case collection(id: String)
     case tag(name: String)
+    case search(filter: AO3WorkSearchFilter)
     
     internal var endpoint: AO3Endpoint {
         switch self {
@@ -51,6 +55,8 @@ public enum AO3WorkSource: Sendable, Equatable {
             return .collection(name: id, route: .works)
         case .tag(let name):
             return .tag(name: name, route: .works)
+        case .search(let filter):
+            return .worksSearch(queryItems: filter.queryItems)
         }
     }
     
@@ -65,6 +71,7 @@ public enum AO3BookmarkSource: Sendable, Equatable {
     case collection(id: String)
     case tag(name: String)
     case series(id: Int)
+    case search(filter: AO3BookmarkSearchFilter)
     
     internal var endpoint: AO3Endpoint {
         switch self {
@@ -76,6 +83,8 @@ public enum AO3BookmarkSource: Sendable, Equatable {
             return .tag(name: name, route: .bookmarks)
         case .series(let id):
             return .series(id: id, route: .bookmarks)
+        case .search(let filter):
+            return .bookmarksSearch(queryItems: filter.queryItems)
         }
     }
     

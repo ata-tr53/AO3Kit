@@ -16,6 +16,7 @@ public final class AO3Client: Sendable {
     internal let userAgent: String
     
     public let cache: AO3Cache
+    public let imageStore: AO3ImageStore
     internal let taskTracker = AO3TaskTracker()
     
     internal let bypassAdultBlock: Bool
@@ -29,12 +30,18 @@ public final class AO3Client: Sendable {
             storageStrategy: .memoryOnly,
             memoryCountLimit: 20
         ),
+        imageStore: AO3ImageStore = AO3ImageStore(
+            storageStrategy: .both,
+            memoryCountLimit: 50,
+            diskByteLimit: 100 * 1024 * 1024
+        ),
         cullRequestsOnOutage: Bool = true
     ) {
         self.session = session
         self.userAgent = userAgent
         self.bypassAdultBlock = bypassAdultBlock
         self.cache = cache
+        self.imageStore = imageStore
         self.cullRequestsOnOutage = cullRequestsOnOutage
         
         if bypassAdultBlock {
@@ -119,14 +126,14 @@ public final class AO3Client: Sendable {
         
         switch root {
         case "works":
-            if remainder.first == "search" { return .worksSearch }
+            if remainder.first == "search" { return .worksSearch() }
             
             guard let idStr = remainder.first, let id = Int(idStr) else { return .unknown }
             let workRemainder = Array(remainder.dropFirst(1))
             return .work(id: id, route: AO3WorkRoute.dissect(remainder: workRemainder))
             
         case "tags":
-            if remainder.first == "search" { return .tagsSearch }
+            if remainder.first == "search" { return .tagsSearch() }
             
             guard let rawTag = remainder.first else { return .unknown }
             let decodedTag = (rawTag.removingPercentEncoding ?? rawTag).ao3TagDecoded
@@ -149,11 +156,11 @@ public final class AO3Client: Sendable {
             return .series(id: id, route: AO3SeriesRoute.dissect(remainder: seriesRemainder))
             
         case "bookmarks":
-            if remainder.first == "search" { return .bookmarksSearch }
+            if remainder.first == "search" { return .bookmarksSearch() }
             return .unknown
             
         case "people":
-            if remainder.first == "search" { return .peopleSearch }
+            if remainder.first == "search" { return .peopleSearch() }
             return .unknown
             
         case "autocomplete":
@@ -438,6 +445,7 @@ public final class AO3Client: Sendable {
     internal func fetchCachedItem<T: Codable & Sendable>(
         url: URL?,
         cacheKey: String? = nil,
+        headers: [String: String]? = nil,
         fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
         parser: @Sendable @escaping (String) async throws -> T
     ) async throws -> T {
@@ -460,7 +468,7 @@ public final class AO3Client: Sendable {
         
         do {
             let result = try await taskTracker.track(key: key) {
-                let html = try await self.performRequest(url: validURL, method: .get)
+                let html = try await self.performRequest(url: validURL, method: .get, headers: headers)
                 return try await parser(html)
             }
             try? await cache.set(result, forKey: key)
@@ -477,6 +485,7 @@ public final class AO3Client: Sendable {
     internal func fetchCachedItem<T: Codable & Sendable>(
         endpoint: AO3Endpoint,
         cacheKey: String? = nil,
+        headers: [String: String]? = nil,
         fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
         parser: @Sendable @escaping (String) async throws -> T
     ) async throws -> T {
@@ -484,7 +493,13 @@ public final class AO3Client: Sendable {
             throw AO3ClientError.invalidURL
         }
         
-        return try await fetchCachedItem(url: url, cacheKey: cacheKey, fallbackStrategy: fallbackStrategy, parser: parser)
+        return try await fetchCachedItem(
+            url: url,
+            cacheKey: cacheKey,
+            headers: headers,
+            fallbackStrategy: fallbackStrategy,
+            parser: parser
+        )
     }
 
 

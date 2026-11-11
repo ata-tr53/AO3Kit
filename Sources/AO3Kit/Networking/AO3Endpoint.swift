@@ -18,11 +18,11 @@ public enum AO3Endpoint: Equatable, Sendable {
     case commentThread(id: Int)
     
     // MARK: - Global Search & Discovery
-    case worksSearch
-    case tagsSearch
-    case bookmarksSearch
-    case peopleSearch
-    case autocomplete(type: String)
+    case worksSearch(queryItems: [URLQueryItem] = [])
+    case tagsSearch(queryItems: [URLQueryItem] = [])
+    case bookmarksSearch(queryItems: [URLQueryItem] = [])
+    case peopleSearch(queryItems: [URLQueryItem] = [])
+    case autocomplete(type: String, queryItems: [URLQueryItem] = [])
     
     // MARK: - Standalone Features
     case download(workID: Int, title: String, format: String)
@@ -59,11 +59,18 @@ public enum AO3Endpoint: Equatable, Sendable {
         case .commentThread(let id):
             components.path = "/comments/\(id)"
             
-        case .worksSearch: components.path = "/works/search"
-        case .tagsSearch: components.path = "/tags/search"
-        case .bookmarksSearch: components.path = "/bookmarks/search"
-        case .peopleSearch: components.path = "/people/search"
-        case .autocomplete(let type): components.path = "/autocomplete/\(type)"
+        case .worksSearch(let queryItems):
+            components.path = "/works/search"
+            routeQueryItems = queryItems
+        case .tagsSearch(let queryItems):
+            components.path = "/tags/search"
+            routeQueryItems = queryItems
+        case .bookmarksSearch(let queryItems):
+            components.path = "/bookmarks/search"
+            routeQueryItems = queryItems
+        case .peopleSearch(let queryItems):
+            components.path = "/people/search"
+            routeQueryItems = queryItems
             
         case .download(let workID, let title, let format):
             // AO3 replaces spaces with underscores for the file title in URLs
@@ -77,6 +84,10 @@ public enum AO3Endpoint: Equatable, Sendable {
                 components.path = "/admin_posts"
             }
             routeQueryItems = route.queryItems
+            
+        case .autocomplete(let type, let queryItems):
+            components.path = "/autocomplete/\(type)"
+            routeQueryItems = queryItems
             
         case .home, .unknown: components.path = "/"
         }

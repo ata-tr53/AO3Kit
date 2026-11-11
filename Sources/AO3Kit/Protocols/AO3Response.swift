@@ -29,6 +29,8 @@ public enum ResponseType: String, Codable, Sendable {
     case chapter = "Chapter"
     case stats = "Stats"
     case subscription = "Subscription"
+    case autocomplete = "Autocomplete"
+    case tag = "Tag"
 }
 
 public extension Array where Element == any AO3Response {
