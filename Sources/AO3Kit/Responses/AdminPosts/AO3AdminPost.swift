@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct AO3AdminPost: Identifiable, Codable, Sendable, Hashable, AO3Response {
+public struct AO3AdminPost: Identifiable, Codable, Sendable, Hashable, AO3Response, AO3IconPresentable {
     public var id: Int
     
     public var title: String
@@ -19,4 +19,5 @@ public struct AO3AdminPost: Identifiable, Codable, Sendable, Hashable, AO3Respon
     public var contentHTML: String
     
     public static var responseType: ResponseType { return .adminPost }
+    public var icon: AO3Image? { return self.displayImage }
 }

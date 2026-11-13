@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct AO3Notification: Identifiable, Sendable, Codable, Hashable, AO3Response {
+public struct AO3Notification: Identifiable, Sendable, Codable, Hashable, AO3Response, AO3IconPresentable {
     public let id: Int
     
     public var user: AO3CommenterType
@@ -20,4 +20,5 @@ public struct AO3Notification: Identifiable, Sendable, Codable, Hashable, AO3Res
     public var isRepliedTo: Bool
     
     public static var responseType: ResponseType { return .inboxNotification }
+    public var icon: AO3Image? { return user.displayIcon }
 }

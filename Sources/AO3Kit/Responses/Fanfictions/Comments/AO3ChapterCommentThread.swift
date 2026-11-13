@@ -8,7 +8,7 @@
 import Foundation
 
 
-public struct AO3ChapterCommentThread: Identifiable, Codable, Hashable, Sendable, AO3Response {
+public struct AO3ChapterCommentThread: Identifiable, Codable, Hashable, Sendable, AO3Response, AO3IconPresentable {
     public var id: Int // html id="comment_[ID]"
     public var rootComment: AO3ChapterComment
     public var replies: [AO3ChapterCommentThread]?
@@ -24,9 +24,10 @@ public struct AO3ChapterCommentThread: Identifiable, Codable, Hashable, Sendable
     }
     
     public static var responseType: ResponseType { return .commentThread }
+    public var icon: AO3Image? { return rootComment.icon }
 }
 
-public struct AO3ChapterComment: Identifiable, Codable, Hashable, Sendable, AO3Response {
+public struct AO3ChapterComment: Identifiable, Codable, Hashable, Sendable, AO3Response, AO3IconPresentable {
     public var id: Int
     public var user: AO3CommenterType?
     
@@ -42,6 +43,7 @@ public struct AO3ChapterComment: Identifiable, Codable, Hashable, Sendable, AO3R
     public var isDeleted: Bool
     
     public static var responseType: ResponseType { return .comment }
+    public var icon: AO3Image? { return user?.displayIcon }
 }
 
 public enum AO3CommenterType: Codable, Hashable, Sendable {
@@ -52,6 +54,13 @@ public enum AO3CommenterType: Codable, Hashable, Sendable {
         switch self {
         case .registered(let link): return link.displayedName
         case .guest(let name): return name
+        }
+    }
+    
+    public var displayIcon: AO3Image? {
+        switch self {
+        case .registered(let link): return link.profilePicture
+        case .guest(_): return .defaultLight
         }
     }
 }

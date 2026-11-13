@@ -33,4 +33,8 @@ public struct AO3ImagesAPI: Sendable {
     public func clearCache() async {
         await client.imageStore.clearAll()
     }
+    
+    public func iconData<Item: AO3IconPresentable>(of item: Item, fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> Data {
+        return try await self.data(for: item.unwrappedIcon, fallbackStrategy: fallbackStrategy)
+    }
 }

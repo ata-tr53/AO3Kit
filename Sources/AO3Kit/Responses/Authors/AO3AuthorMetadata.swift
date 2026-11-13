@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct AO3AuthorMetadata: Identifiable, Sendable, Codable, Hashable, AO3Subscribable, AO3Mutable, AO3Blockable, AO3AuthorModel {
+public struct AO3AuthorMetadata: Identifiable, Sendable, Codable, Hashable, AO3Subscribable, AO3Mutable, AO3Blockable, AO3AuthorModel, AO3IconPresentable {
     
     public var id: Int
     
@@ -41,6 +41,7 @@ public struct AO3AuthorMetadata: Identifiable, Sendable, Codable, Hashable, AO3S
     public var unmuteActionID: Int?
     
     public static var responseType: ResponseType { return .user }
+    public var icon: AO3Image? { return self.profilePicture }
     
     
     public var countDictionary: [String: Int] {
@@ -77,19 +78,4 @@ public struct AO3AuthorMetadata: Identifiable, Sendable, Codable, Hashable, AO3S
     }
     
     public var isCurrentUser: Bool { self.signedInMetadata != nil }
-}
-
-// MARK: - AO3ProfileImage
-
-public struct AO3Image: Identifiable, Sendable, Codable, Hashable {
-    public var description: String?
-    public var source: String
-    
-    public var url: URL? { return URL(string: self.source) }
-    
-    public var id: String { self.source }
-    
-    public var isDefault: Bool {
-        self.source.contains("/images/skins/iconsets/default/icon_user.png")
-    }
 }

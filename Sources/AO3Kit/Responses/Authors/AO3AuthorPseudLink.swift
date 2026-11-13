@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct AO3AuthorPseudLink: Codable, Sendable, Hashable, Identifiable, AO3AuthorModel {
+public struct AO3AuthorPseudLink: Codable, Sendable, Hashable, Identifiable, AO3AuthorModel, AO3IconPresentable {
     public var id: String { "\(username)/\(pseudName)" }
     
     /// The parent AO3 account username (used for `/users/{username}` endpoints).
