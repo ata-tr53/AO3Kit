@@ -19,6 +19,9 @@ public actor AO3StatusMonitor {
     private let incidentsCacheKey = "OTW_Recent_Incidents"
     private let feedTaskKey = "OTW_Atom_Feed_Fetch"
     
+    private let statusPageURL = URL(string: "https://www.otwstatus.org")!
+    private let uptimeShowcaseBaseURL = "https://www.otwstatus.org/uptime_showcase"
+    private let defaultAO3ComponentID = "w84xs5kg4lp6"
     private let feedURL = URL(string: "https://www.otwstatus.org/history.atom")!
     
     public init(session: URLSession = .shared) {
@@ -62,14 +65,21 @@ public actor AO3StatusMonitor {
     // MARK: - Internal Logic
     
     private func refreshFeedAndCache() async throws -> (AO3SystemStatus, [AO3Incident]) {
-        let incidents = try await taskTracker.track(key: feedTaskKey) {
-            try await self.fetchAndParseFeed()
+        let (pageSnapshot, incidents) = try await taskTracker.track(key: feedTaskKey) {
+            async let snapshotTask = self.fetchAndParseStatusPage()
+            async let feedTask = self.fetchAndParseFeed()
+
+            let incidents = try await feedTask
+            let snapshot = try? await snapshotTask
+            return (snapshot, incidents)
         }
-        let status = buildStatus(from: incidents)
-        
+
+        let status = buildStatus(snapshot: pageSnapshot, incidents: incidents)
+        await AO3RateLimiter.shared.updateStatus(status.status)
+
         try? await cache.set(status, forKey: statusCacheKey)
         try? await cache.set(incidents, forKey: incidentsCacheKey)
-        
+
         return (status, incidents)
     }
     
@@ -85,21 +95,91 @@ public actor AO3StatusMonitor {
         return try parser.parse()
     }
     
-    private func buildStatus(from incidents: [AO3Incident]) -> AO3SystemStatus {
-        let relevantIncident = incidents.first(where: isRelevantToAO3)
-        let isOperational: Bool
-        
-        if let incident = relevantIncident {
-            isOperational = !isActiveOutage(incident)
-        } else {
-            isOperational = true
+    private func fetchAndParseStatusPage() async throws -> OTWStatusPageSnapshot {
+        async let mainPageTask = session.data(from: statusPageURL)
+        async let showcaseTask = fetchUptimeShowcaseHTML(componentID: defaultAO3ComponentID)
+
+        let (data, response) = try await mainPageTask
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode),
+              let html = String(data: data, encoding: .utf8) else {
+            throw URLError(.badServerResponse)
         }
-        
+
+        var snapshot = try AO3Parser.parseOTWStatusPage(html: html)
+
+        if snapshot.uptimeDays.isEmpty {
+            let showcaseHTML: String?
+            if snapshot.componentID == defaultAO3ComponentID {
+                showcaseHTML = try? await showcaseTask
+            } else {
+                showcaseHTML = try? await fetchUptimeShowcaseHTML(componentID: snapshot.componentID)
+            }
+
+            if let showcaseHTML,
+               let metrics = try? AO3Parser.parseOTWUptimeShowcase(showcaseHTML: showcaseHTML) {
+                snapshot.uptimePercentage = metrics.uptimePercentage
+                snapshot.uptimeDays = metrics.uptimeDays
+            }
+        }
+
+        return snapshot
+    }
+    
+    private func fetchUptimeShowcaseHTML(componentID: String) async throws -> String? {
+        guard var components = URLComponents(string: uptimeShowcaseBaseURL) else {
+            return nil
+        }
+        components.queryItems = [URLQueryItem(name: "components", value: componentID)]
+        guard let url = components.url else { return nil }
+
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            return nil
+        }
+
+        let decoded = try JSONDecoder().decode(OTWUptimeShowcaseResponse.self, from: data)
+        return decoded.components?[componentID]
+    }
+
+    private func buildStatus(
+        snapshot: OTWStatusPageSnapshot?,
+        incidents: [AO3Incident]
+    ) -> AO3SystemStatus {
+        let relevantIncident = incidents.first(where: isRelevantToAO3)
+
+        let resolvedStatus: AO3OperationalStatus
+        if let snapshotStatus = snapshot?.status, snapshotStatus != .unknown {
+            resolvedStatus = snapshotStatus
+        } else if let incident = relevantIncident {
+            resolvedStatus = inferStatusFromIncident(incident)
+        } else {
+            resolvedStatus = .unknown
+        }
+
         return AO3SystemStatus(
-            isOperational: isOperational,
+            status: resolvedStatus,
+            uptimePercentage: snapshot?.uptimePercentage,
+            uptimeDays: snapshot?.uptimeDays ?? [],
             latestIncident: relevantIncident ?? incidents.first,
             timestamp: Date()
         )
+    }
+
+    private func inferStatusFromIncident(_ incident: AO3Incident) -> AO3OperationalStatus {
+        guard isActiveOutage(incident) else {
+            return .operational
+        }
+        let combined = (incident.title + " " + incident.content).lowercased()
+        if combined.contains("degraded") || combined.contains("slow") || combined.contains("partial") {
+            return .degradedPerformance
+        }
+        return .notOperational
     }
     
     private func isRelevantToAO3(_ incident: AO3Incident) -> Bool {
@@ -118,17 +198,15 @@ public actor AO3StatusMonitor {
         let titleLower = incident.title.lowercased()
         let contentLower = incident.content.lowercased()
         
-        // In Statuspage Atom feeds, the newest update is the first <strong>State</strong> block
         if let firstStrongRange = contentLower.range(of: "<strong>"),
            let closeStrongRange = contentLower.range(of: "</strong>", range: firstStrongRange.upperBound..<contentLower.endIndex) {
             let latestState = contentLower[firstStrongRange.upperBound..<closeStrongRange.lowerBound]
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             
-            // Resolved, completed, postmortem, or future scheduled notices mean AO3 is currently up
             if ["resolved", "completed", "postmortem", "scheduled"].contains(latestState) {
                 return false
             }
-            // Active incident states on Statuspage
+            
             if ["investigating", "identified", "in progress", "verifying"].contains(latestState) {
                 return true
             }

@@ -13,20 +13,36 @@ public actor AO3RateLimiter {
     private var lastScheduledTime: Date = .distantPast
     private var penaltyUntil: Date = .distantPast
     private let minimumDelay: TimeInterval
+    private let degradedMultiplier: Double
+    private var currentStatus: AO3OperationalStatus = .operational
     
-    public init(minimumDelay: TimeInterval = 0.5) {
+    public init(minimumDelay: TimeInterval = 0.5, degradedMultiplier: Double = 2.0) {
         self.minimumDelay = minimumDelay
+        self.degradedMultiplier = degradedMultiplier
+    }
+    
+    public func updateStatus(_ status: AO3OperationalStatus) {
+        self.currentStatus = status
+    }
+    
+    private var effectiveDelay: TimeInterval {
+        switch currentStatus {
+        case .degradedPerformance:
+            return minimumDelay * degradedMultiplier
+        case .operational, .notOperational, .unknown:
+            return minimumDelay
+        }
     }
     
     /// Suspends the current task if a server penalty is active,
-    /// or if the minimum delay hasn't passed since the last request.
+    /// or if the effective delay hasn't passed since the last request.
     public func waitIfNeeded() async throws {
         let now = Date()
         
         let earliestAvailable = max(
             now,
             penaltyUntil,
-            lastScheduledTime.addingTimeInterval(minimumDelay)
+            lastScheduledTime.addingTimeInterval(effectiveDelay)
         )
         lastScheduledTime = earliestAvailable
         
