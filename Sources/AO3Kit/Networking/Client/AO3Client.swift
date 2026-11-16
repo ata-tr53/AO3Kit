@@ -16,7 +16,7 @@ public final class AO3Client: Sendable {
     internal let userAgent: String
     
     public let cache: AO3Cache
-    public let imageStore: AO3ImageStore
+    internal let imageStore: AO3ImageStore
     internal let taskTracker = AO3TaskTracker()
     
     internal let bypassAdultBlock: Bool

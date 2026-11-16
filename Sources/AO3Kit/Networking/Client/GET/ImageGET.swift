@@ -10,23 +10,21 @@ import Foundation
 internal extension AO3Client {
     
     func fetchImageData(for url: URL, fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> Data {
-        let isAO3: Bool = url.isAO3
         let key = url.absoluteString
         let taskKey = "image_fetch_\(key)"
         
         var staleFallbackData: Data? = nil
         
-        if fallbackStrategy != .bypassCache, let response: Data = await imageStore.data(forKey: key) {
-            
-            if fallbackStrategy == .prioritiseCache {
+        if fallbackStrategy != .throwError, let response: Data = await imageStore.data(forKey: key) {
+            if fallbackStrategy != .bypassCache {
                 return response
+            } else {
+                staleFallbackData = response
             }
-            
-            staleFallbackData = response
         }
         
         do {
-            let result = try await taskTracker.track(key: key) {
+            let result = try await taskTracker.track(key: taskKey) {
                 var request = URLRequest(url: url)
                 request.setValue(self.userAgent, forHTTPHeaderField: "User-Agent")
                 
@@ -37,10 +35,10 @@ internal extension AO3Client {
                 
                 return data
             }
-            try? await cache.set(result, forKey: key)
+            await imageStore.store(result, forKey: key)
             return result
         } catch {
-            if fallbackStrategy == .useCache, let staleData = staleFallbackData {
+            if fallbackStrategy != .throwError, let staleData = staleFallbackData {
                 return staleData
             }
             throw error
