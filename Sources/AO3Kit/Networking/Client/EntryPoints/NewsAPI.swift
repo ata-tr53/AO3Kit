@@ -6,7 +6,7 @@
 //
 
 
-public struct AO3NewsAPI: Sendable {
+internal struct AO3NewsAPI: Sendable {
     internal let client: AO3Client
     
     public func post(for id: Int, fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> AO3AdminPost {

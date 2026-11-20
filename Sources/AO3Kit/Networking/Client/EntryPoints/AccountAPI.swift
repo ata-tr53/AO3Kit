@@ -5,7 +5,7 @@
 //  Created by İsmail Ata Bayraktutan on 10.11.2026.
 //
 
-public struct AO3AccountAPI: Sendable {
+internal struct AO3AccountAPI: Sendable {
     internal let client: AO3Client
     
     // MARK: Session State & Auth

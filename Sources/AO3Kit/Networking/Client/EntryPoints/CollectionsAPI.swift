@@ -6,7 +6,7 @@
 //
 
 
-public struct AO3CollectionsAPI: Sendable {
+internal struct AO3CollectionsAPI: Sendable {
     internal let client: AO3Client
     
     public func profile(for id: String, fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> AO3Collection {

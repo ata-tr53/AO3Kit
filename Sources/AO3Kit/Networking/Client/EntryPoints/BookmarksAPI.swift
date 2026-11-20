@@ -5,7 +5,7 @@
 //  Created by İsmail Ata Bayraktutan on 10.11.2026.
 //
 
-public struct AO3BookmarksAPI: Sendable {
+internal struct AO3BookmarksAPI: Sendable {
     internal let client: AO3Client
     
     /// Fetches a page of full fic bookmarks (`AO3FicBookmark`) from a user, collection, tag, or series.
