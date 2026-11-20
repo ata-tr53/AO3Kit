@@ -9,22 +9,34 @@ import Foundation
 import Synchronization
 
 internal struct AO3DateParser: Sendable, ~Copyable {
-    private let lock: Mutex<DateFormatter>
+    private let lock: Mutex<(formatter: DateFormatter, formats: [String])>
     
-    init(format: String, timeZone: TimeZone? = TimeZone(secondsFromGMT: 0)) {
+    init(formats: [String], timeZone: TimeZone? = TimeZone(secondsFromGMT: 0)) {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         if let timeZone {
             formatter.timeZone = timeZone
         }
-        formatter.dateFormat = format
-        self.lock = Mutex(formatter)
+        if let first = formats.first {
+            formatter.dateFormat = first
+        }
+        self.lock = Mutex((formatter, formats))
+    }
+    
+    init(format: String, timeZone: TimeZone? = TimeZone(secondsFromGMT: 0)) {
+        self.init(formats: [format], timeZone: timeZone)
     }
     
     func date(from string: String?) -> Date? {
         guard let string, !string.isEmpty else { return nil }
-        return lock.withLock { formatter in
-            formatter.date(from: string)
+        return lock.withLock { state in
+            for format in state.formats {
+                state.formatter.dateFormat = format
+                if let date = state.formatter.date(from: string) {
+                    return date
+                }
+            }
+            return nil
         }
     }
 }
@@ -36,9 +48,12 @@ internal extension DateFormatter {
         timeZone: TimeZone(secondsFromGMT: 0)
     )
     
-    /// Format: `Mon 14 Sep 2026 11:28AM UTC`
+    /// Formats: `Mon 14 Sep 2026 11:28AM UTC` or `Mon 14 Sep 2026 02:28PM +03`
     static let ao3CommentDateFormatter = AO3DateParser(
-        format: "EEE dd MMM yyyy h:mma zzz",
+        formats: [
+            "EEE dd MMM yyyy h:mma X",
+            "EEE dd MMM yyyy h:mma zzz"
+        ],
         timeZone: TimeZone(abbreviation: "UTC")
     )
     
@@ -48,9 +63,13 @@ internal extension DateFormatter {
         timeZone: TimeZone(secondsFromGMT: 0)
     )
     
-    /// Format: `Mon, 14 Sep 2026 11:28:59 +0000`
+    /// Formats: `Wed 18 Nov 2026 05:21PM +03`, `Wed 18 Nov 2026 02:21PM UTC`, or RSS `Mon, 14 Sep 2026 11:28:59 +0000`
     static let ao3AdminPostDateFormatter = AO3DateParser(
-        format: "EEE, dd MMM yyyy HH:mm:ss Z",
+        formats: [
+            "EEE dd MMM yyyy h:mma X",
+            "EEE dd MMM yyyy h:mma zzz",
+            "EEE, dd MMM yyyy HH:mm:ss Z"
+        ],
         timeZone: nil
     )
 }

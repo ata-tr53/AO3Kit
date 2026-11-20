@@ -20,7 +20,7 @@ public final class AO3Client: Sendable {
     internal let taskTracker = AO3TaskTracker()
     
     internal let bypassAdultBlock: Bool
-    public let cullRequestsOnOutage: Bool
+    internal let cullRequestsOnOutage: Bool
     
     public init(
         session: URLSession = .shared,

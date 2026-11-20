@@ -95,7 +95,9 @@ extension AO3Parser {
             return .operational
         case "degraded_performance", "partial_outage":
             return .degradedPerformance
-        case "major_outage", "under_maintenance":
+        case "under_maintenance":
+            return .underMaintenance
+        case "major_outage":
             return .notOperational
         default:
             break
@@ -107,7 +109,10 @@ extension AO3Parser {
         if text.contains("operational") || element.hasClass("status-green") {
             return .operational
         }
-        if text.contains("outage") || text.contains("maintenance") || element.hasClass("status-red") || element.hasClass("status-blue") {
+        if text.contains("maintenance") || element.hasClass("status-blue") {
+            return .underMaintenance
+        }
+        if text.contains("outage") || element.hasClass("status-red") {
             return .notOperational
         }
         return .unknown
@@ -119,12 +124,15 @@ extension AO3Parser {
             return .operational
         case "#f1c40f", "#e67e22": // Statuspage yellow / orange
             return .degradedPerformance
-        case "#e74c3c", "#3498db": // Statuspage red (outage) / blue (maintenance)
+        case "#3498db": // Statuspage blue (maintenance)
+            return .underMaintenance
+        case "#e74c3c": // Statuspage red (outage)
             return .notOperational
         default:
             return .unknown
         }
     }
+
 
     private static func extractDayIndex(from classAttribute: String) -> Int? {
         for token in classAttribute.split(separator: " ") {

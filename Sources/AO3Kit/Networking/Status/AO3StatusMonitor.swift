@@ -176,6 +176,9 @@ public actor AO3StatusMonitor {
             return .operational
         }
         let combined = (incident.title + " " + incident.content).lowercased()
+        if combined.contains("maintenance") {
+            return .underMaintenance
+        }
         if combined.contains("degraded") || combined.contains("slow") || combined.contains("partial") {
             return .degradedPerformance
         }

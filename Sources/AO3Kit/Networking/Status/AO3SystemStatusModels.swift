@@ -12,12 +12,13 @@ import Foundation
 public enum AO3OperationalStatus: String, Codable, Sendable {
     case operational
     case degradedPerformance
+    case underMaintenance
     case notOperational
     case unknown
     
     public var isOperational: Bool {
         switch self {
-        case .operational, .degradedPerformance:
+        case .operational, .degradedPerformance, .underMaintenance:
             return true
         case .notOperational, .unknown:
             return false

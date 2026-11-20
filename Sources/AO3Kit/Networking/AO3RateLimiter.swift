@@ -27,7 +27,7 @@ public actor AO3RateLimiter {
     
     private var effectiveDelay: TimeInterval {
         switch currentStatus {
-        case .degradedPerformance:
+        case .degradedPerformance, .underMaintenance:
             return minimumDelay * degradedMultiplier
         case .operational, .notOperational, .unknown:
             return minimumDelay
