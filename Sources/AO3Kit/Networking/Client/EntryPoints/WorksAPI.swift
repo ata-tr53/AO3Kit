@@ -5,7 +5,7 @@
 //  Created by İsmail Ata Bayraktutan on 10.11.2026.
 //
 
-internal struct AO3WorksAPI: Sendable {
+public struct AO3WorksAPI: Sendable {
     internal let client: AO3Client
     
     // MARK: Metadata

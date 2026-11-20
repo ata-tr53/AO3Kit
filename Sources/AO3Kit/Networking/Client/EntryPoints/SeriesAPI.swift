@@ -6,7 +6,7 @@
 //
 
 
-internal struct AO3SeriesAPI: Sendable {
+public struct AO3SeriesAPI: Sendable {
     internal let client: AO3Client
     
     public func metadata(for id: Int, fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> AO3Series {

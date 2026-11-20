@@ -5,7 +5,7 @@
 //  Created by İsmail Ata Bayraktutan on 10.11.2026.
 //
 
-internal struct AO3UsersAPI: Sendable {
+public struct AO3UsersAPI: Sendable {
     internal let client: AO3Client
     
     public func profile(for username: String, fallbackStrategy: AO3CacheFallbackStrategy = .useCache) async throws -> AO3AuthorMetadata {

@@ -7,7 +7,7 @@
 
 import Foundation
 
-internal struct AO3ImagesAPI: Sendable {
+public struct AO3ImagesAPI: Sendable {
     internal let client: AO3Client
     
     public var cache: AO3ImageCacheAPI { AO3ImageCacheAPI(client: self.client) }
@@ -30,7 +30,7 @@ internal struct AO3ImagesAPI: Sendable {
     }
 }
 
-internal struct AO3ImageCacheAPI: Sendable {
+public struct AO3ImageCacheAPI: Sendable {
     internal let client: AO3Client
     
     /// Synchronously retrieves cached image data from memory or disk without hitting the network.
