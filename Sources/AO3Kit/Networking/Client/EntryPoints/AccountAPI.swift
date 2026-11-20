@@ -207,4 +207,238 @@ public struct AO3AccountAPI: Sendable {
     public func unmute<User: AO3Mutable>(_ target: User) async throws {
         try await client.unmuteUser(target: target)
     }
+
+    // MARK: Favorite Tags
+
+    public func favoriteTags(
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> [AO3FavoriteTag] {
+        try await client.fetchFavoriteTags(fallbackStrategy: fallbackStrategy)
+    }
+
+    public func addFavoriteTag(named tagName: String) async throws {
+        try await client.addFavoriteTag(named: tagName)
+    }
+
+    public func addFavoriteTag<Tag: AO3TagModel>(_ tag: Tag) async throws {
+        try await client.addFavoriteTag(named: tag.tagName)
+    }
+
+    public func removeFavoriteTag(named tagName: String) async throws {
+        try await client.removeFavoriteTag(named: tagName)
+    }
+
+    public func removeFavoriteTag<Tag: AO3TagModel>(_ tag: Tag) async throws {
+        try await client.removeFavoriteTag(named: tag.tagName)
+    }
+
+    public func removeFavoriteTag<Tag: AO3FavoritableTag>(_ tag: Tag) async throws {
+        if let recordID = tag.favoriteRecordID {
+            try await client.removeFavoriteTag(recordID: recordID)
+        } else {
+            try await client.removeFavoriteTag(named: tag.tagName)
+        }
+    }
+
+    public func toggleFavoriteTag<Tag: AO3FavoritableTag>(_ tag: Tag) async throws {
+        if tag.isFavorited {
+            try await removeFavoriteTag(tag)
+        } else {
+            try await addFavoriteTag(tag)
+        }
+    }
+
+    // MARK: Server-side Logout
+
+    /// Logs out on the AO3 server (`DELETE /users/logout`) and clears local session cookies and caches.
+    public func logoutFromServer() async throws {
+        try await client.logoutFromServer()
+    }
+
+    // MARK: Site Skins
+
+    public func publicSkinsPage(
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3Skin> {
+        try await client.fetchPublicSkinsPage(page: page, fallbackStrategy: fallbackStrategy)
+    }
+
+    public func allPublicSkins(
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3Skin] {
+        try await client.fetchAllPublicSkins(
+            maxPages: maxPages,
+            fallbackStrategy: fallbackStrategy,
+            progressHandler: progressHandler
+        )
+    }
+
+    public func userSkinsPage(
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3Skin> {
+        try await client.fetchUserSkinsPage(page: page, fallbackStrategy: fallbackStrategy)
+    }
+
+    public func allUserSkins(
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3Skin] {
+        try await client.fetchAllUserSkins(
+            maxPages: maxPages,
+            fallbackStrategy: fallbackStrategy,
+            progressHandler: progressHandler
+        )
+    }
+
+    public func setSkin(id skinID: Int) async throws {
+        try await client.setSkin(id: skinID)
+    }
+
+    public func setSkin(_ skin: AO3Skin) async throws {
+        try await client.setSkin(id: skin.id)
+    }
+
+    public func unsetSkin() async throws {
+        try await client.unsetSkin()
+    }
+
+    // MARK: User Preferences
+
+    public func preferences(
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3UserPreferences {
+        try await client.fetchUserPreferences(fallbackStrategy: fallbackStrategy)
+    }
+
+    public func updatePreferences(_ preferences: AO3UserPreferences) async throws {
+        try await client.updateUserPreferences(preferences)
+    }
+
+    // MARK: Author & User Dashboard (Drafts, Collected Works, Collections, Related Works, Creatorships)
+
+    public func draftsPage(
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3FicPreview> {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchPaginated(
+            endpoint: .user(username: username, route: .worksSub(.drafts)),
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseFicPreviews
+        )
+    }
+
+    public func allDrafts(
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3FicPreview] {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchAllItems(
+            endpoint: .user(username: username, route: .worksSub(.drafts)),
+            maxPages: maxPages,
+            progressHandler: progressHandler,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseFicPreviews
+        )
+    }
+
+    public func collectedWorksPage(
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3FicPreview> {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchPaginated(
+            endpoint: .user(username: username, route: .worksSub(.collected)),
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseFicPreviews
+        )
+    }
+
+    public func allCollectedWorks(
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3FicPreview] {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchAllItems(
+            endpoint: .user(username: username, route: .worksSub(.collected)),
+            maxPages: maxPages,
+            progressHandler: progressHandler,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseFicPreviews
+        )
+    }
+
+    public func collectionsPage(
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3CollectionPreview> {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchPaginated(
+            endpoint: .user(username: username, route: .collections),
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseCollectionPreviews
+        )
+    }
+
+    public func allCollections(
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3CollectionPreview] {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchAllItems(
+            endpoint: .user(username: username, route: .collections),
+            maxPages: maxPages,
+            progressHandler: progressHandler,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseCollectionPreviews
+        )
+    }
+
+    public func relatedWorks(
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> [AO3RelatedWork] {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchRelatedWorks(for: username, fallbackStrategy: fallbackStrategy)
+    }
+
+    public func approveRelatedWork(id relatedWorkID: Int) async throws {
+        try await client.approveRelatedWork(id: relatedWorkID)
+    }
+
+    public func approveRelatedWork(_ relatedWork: AO3RelatedWork) async throws {
+        try await client.approveRelatedWork(id: relatedWork.id)
+    }
+
+    public func removeRelatedWork(id relatedWorkID: Int) async throws {
+        try await client.removeRelatedWork(id: relatedWorkID)
+    }
+
+    public func removeRelatedWork(_ relatedWork: AO3RelatedWork) async throws {
+        try await client.removeRelatedWork(id: relatedWork.id)
+    }
+
+    public func coCreatorRequests(
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> [AO3CoCreatorRequest] {
+        try await client.fetchCoCreatorRequests(fallbackStrategy: fallbackStrategy)
+    }
+
+    public func respondToCoCreatorRequests(ids: [Int], accept: Bool) async throws {
+        try await client.respondToCoCreatorRequests(ids: ids, accept: accept)
+    }
+
+    public func respondToCoCreatorRequest(_ request: AO3CoCreatorRequest, accept: Bool) async throws {
+        try await client.respondToCoCreatorRequests(ids: [request.id], accept: accept)
+    }
 }

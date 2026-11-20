@@ -87,4 +87,56 @@ public struct AO3BookmarksAPI: Sendable {
             progressHandler: progressHandler
         )
     }
+
+    // MARK: Single Bookmark & CRUD
+
+    /// Fetches a single bookmark by its ID (`GET /bookmarks/:id`).
+    public func bookmark(
+        id: Int,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3FicBookmark {
+        try await client.fetchBookmark(id: id, fallbackStrategy: fallbackStrategy)
+    }
+
+    /// Creates (or updates if one already exists for the current user) a bookmark on a work, series, or external work.
+    public func create(
+        for target: AO3BookmarkTarget,
+        draft: AO3BookmarkDraft
+    ) async throws {
+        try await client.createBookmark(for: target, draft: draft)
+    }
+
+    /// Creates (or updates) a bookmark on any `AO3Bookmarkable` model (e.g., `AO3FicMetadata`, `AO3FicPreview`, `AO3Series`).
+    public func create<Target: AO3Bookmarkable>(
+        for target: Target,
+        draft: AO3BookmarkDraft
+    ) async throws {
+        try await client.createBookmark(for: target.bookmarkTarget, draft: draft)
+    }
+
+    /// Updates an existing bookmark by its ID.
+    public func update(
+        id: Int,
+        draft: AO3BookmarkDraft
+    ) async throws {
+        try await client.updateBookmark(id: id, draft: draft)
+    }
+
+    /// Updates an existing bookmark.
+    public func update(
+        _ bookmark: AO3FicBookmark,
+        draft: AO3BookmarkDraft
+    ) async throws {
+        try await client.updateBookmark(id: bookmark.id, draft: draft)
+    }
+
+    /// Deletes an existing bookmark by its ID.
+    public func delete(id: Int) async throws {
+        try await client.deleteBookmark(id: id)
+    }
+
+    /// Deletes an existing bookmark.
+    public func delete(_ bookmark: AO3FicBookmark) async throws {
+        try await client.deleteBookmark(id: bookmark.id)
+    }
 }

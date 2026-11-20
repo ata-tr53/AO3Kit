@@ -147,4 +147,21 @@ internal extension AO3Client {
             parser: AO3Parser.parseWorkBookmarks
         )
     }
+
+    //-----------------------------------------------------------------------------------
+
+    // MARK: - Work Kudos List API
+
+    func fetchWorkKudos(
+        for workID: Int,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3WorkKudos {
+        try await fetchCachedItem(
+            endpoint: .work(id: workID, route: .kudos),
+            cacheKey: "work_kudos_\(workID)",
+            fallbackStrategy: fallbackStrategy
+        ) { html in
+            try AO3Parser.parseWorkKudos(html: html, workID: workID)
+        }
+    }
 }

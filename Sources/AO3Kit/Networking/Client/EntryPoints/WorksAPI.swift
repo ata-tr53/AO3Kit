@@ -186,4 +186,126 @@ public struct AO3WorksAPI: Sendable {
     public func toggleMarkForLater<Fic: AO3FicModel>(work: Fic, isMarkingForLater: Bool) async throws {
         try await client.toggleMarkForLater(workID: work.id, isMarkingForLater: isMarkingForLater)
     }
+
+    // MARK: Downloads
+
+    public func downloadLinks(
+        for workID: Int,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> [AO3DownloadLink] {
+        try await client.fetchDownloadLinks(for: workID, fallbackStrategy: fallbackStrategy)
+    }
+
+    public func downloadLinks<Fic: AO3FicModel>(
+        for fic: Fic,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> [AO3DownloadLink] {
+        try await client.fetchDownloadLinks(for: fic.id, fallbackStrategy: fallbackStrategy)
+    }
+
+    public func download(
+        workID: Int,
+        format: AO3DownloadFormat,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3WorkDownload {
+        try await client.downloadWork(workID: workID, format: format, fallbackStrategy: fallbackStrategy)
+    }
+
+    public func download<Fic: AO3FicModel>(
+        _ fic: Fic,
+        format: AO3DownloadFormat,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3WorkDownload {
+        try await client.downloadWork(workID: fic.id, format: format, fallbackStrategy: fallbackStrategy)
+    }
+
+    public func download(from link: AO3DownloadLink) async throws -> AO3WorkDownload {
+        try await client.downloadWork(from: link)
+    }
+
+    // MARK: Kudos List
+
+    public func kudos(
+        for workID: Int,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3WorkKudos {
+        try await client.fetchWorkKudos(for: workID, fallbackStrategy: fallbackStrategy)
+    }
+
+    public func kudos<Fic: AO3FicModel>(
+        for fic: Fic,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3WorkKudos {
+        try await client.fetchWorkKudos(for: fic.id, fallbackStrategy: fallbackStrategy)
+    }
+
+    // MARK: Comment Edit, Delete & Moderation
+
+    public func commentsPage<Target: AO3Commentable>(
+        for target: Target,
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3ChapterCommentThread> {
+        try await client.fetchPaginated(
+            endpoint: target.commentsEndpoint,
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseComments
+        )
+    }
+
+    public func allComments<Target: AO3Commentable>(
+        for target: Target,
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3ChapterCommentThread] {
+        try await client.fetchAllItems(
+            endpoint: target.commentsEndpoint,
+            maxPages: maxPages,
+            progressHandler: progressHandler,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseComments
+        )
+    }
+
+    public func postComment<Target: AO3Commentable>(
+        on target: Target,
+        content: String,
+        pseudName: String
+    ) async throws {
+        try await client.postComment(on: target, content: content, pseudName: pseudName)
+    }
+
+    public func editComment(id commentID: Int, content: String) async throws {
+        try await client.editComment(id: commentID, content: content)
+    }
+
+    public func editComment<Comment: AO3ModerableComment>(_ comment: Comment, content: String) async throws {
+        try await client.editComment(id: comment.commentID, content: content)
+    }
+
+    public func deleteComment(id commentID: Int) async throws {
+        try await client.deleteComment(id: commentID)
+    }
+
+    public func deleteComment<Comment: AO3ModerableComment>(_ comment: Comment) async throws {
+        try await client.deleteComment(id: comment.commentID)
+    }
+
+    public func moderateComment(id commentID: Int, action: AO3CommentModerationAction) async throws {
+        try await client.moderateComment(id: commentID, action: action)
+    }
+
+    public func moderateComment<Comment: AO3ModerableComment>(_ comment: Comment, action: AO3CommentModerationAction) async throws {
+        try await client.moderateComment(id: comment.commentID, action: action)
+    }
+
+    public func reviewAllComments(for workID: Int) async throws {
+        try await client.reviewAllComments(forWorkID: workID)
+    }
+
+    public func reviewAllComments<Fic: AO3FicModel>(for fic: Fic) async throws {
+        try await client.reviewAllComments(forWorkID: fic.id)
+    }
 }

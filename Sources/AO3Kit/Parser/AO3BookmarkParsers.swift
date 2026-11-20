@@ -78,4 +78,69 @@ public extension AO3Parser {
         }
         return status.isEmpty ? [.public] : status
     }
+
+    // MARK: - Single Bookmark & Form Context Parsers
+
+    static func parseSingleBookmark(html: String) throws -> AO3FicBookmark {
+        let bookmarks = try parseBookmarks(html: html)
+        guard let first = bookmarks.first else {
+            throw AO3ClientError.noDataFound
+        }
+        return first
+    }
+
+    internal struct AO3BookmarkFormContext: Sendable {
+        let csrfToken: String
+        let actionPath: String
+        let isEditing: Bool
+        let pseudMap: [String: Int]
+        let defaultPseudID: Int
+    }
+
+    internal static func parseBookmarkFormContext(from html: String) throws -> AO3BookmarkFormContext {
+        let csrfToken = try parseCSRFToken(from: html)
+
+        return try withDocument(html: html) { doc in
+            guard let form = try doc.select("form#bookmark-form, form.new_bookmark, form.edit_bookmark, form[action*='/bookmarks']").first(),
+                  let actionPath = try? form.attr("action"),
+                  !actionPath.isEmpty else {
+                throw AO3ClientError.invalidData
+            }
+
+            let methodInput = form.firstAttr("input[name='_method']", "value")?.lowercased()
+            let isEditing = methodInput == "patch" || methodInput == "put"
+
+            var pseudMap: [String: Int] = [:]
+            var defaultPseudID: Int? = nil
+
+            let options = try form.select("select[name='bookmark[pseud_id]'] option").array()
+            for option in options {
+                let name = (try? option.text().trimmingCharacters(in: .whitespacesAndNewlines)) ?? ""
+                if let id = Int((try? option.attr("value")) ?? "") {
+                    pseudMap[name] = id
+                    if option.hasAttr("selected") || defaultPseudID == nil {
+                        defaultPseudID = id
+                    }
+                }
+            }
+
+            if defaultPseudID == nil,
+               let hiddenVal = form.firstAttr("input[name='bookmark[pseud_id]']", "value"),
+               let hiddenID = Int(hiddenVal) {
+                defaultPseudID = hiddenID
+            }
+
+            guard let resolvedDefaultPseudID = defaultPseudID else {
+                throw AO3ClientError.pseudNotFound
+            }
+
+            return AO3BookmarkFormContext(
+                csrfToken: csrfToken,
+                actionPath: actionPath,
+                isEditing: isEditing,
+                pseudMap: pseudMap,
+                defaultPseudID: resolvedDefaultPseudID
+            )
+        }
+    }
 }

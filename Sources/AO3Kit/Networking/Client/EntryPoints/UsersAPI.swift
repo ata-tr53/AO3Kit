@@ -53,4 +53,51 @@ public struct AO3UsersAPI: Sendable {
     ) async throws -> [AO3SeriesPreview] {
         try await client.fetchAllUserSeries(for: author.username, maxPages: maxPages, fallbackStrategy: fallbackStrategy, progressHandler: progressHandler)
     }
+
+    // MARK: Collections
+
+    public func collectionsPage(
+        for username: String,
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3CollectionPreview> {
+        try await client.fetchPaginated(
+            endpoint: .user(username: username, route: .collections),
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseCollectionPreviews
+        )
+    }
+
+    public func collectionsPage<Author: AO3AuthorModel>(
+        for author: Author,
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3CollectionPreview> {
+        try await collectionsPage(for: author.username, page: page, fallbackStrategy: fallbackStrategy)
+    }
+
+    public func allCollections(
+        for username: String,
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3CollectionPreview] {
+        try await client.fetchAllItems(
+            endpoint: .user(username: username, route: .collections),
+            maxPages: maxPages,
+            progressHandler: progressHandler,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseCollectionPreviews
+        )
+    }
+
+    public func allCollections<Author: AO3AuthorModel>(
+        for author: Author,
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3CollectionPreview] {
+        try await allCollections(for: author.username, maxPages: maxPages, fallbackStrategy: fallbackStrategy, progressHandler: progressHandler)
+    }
 }

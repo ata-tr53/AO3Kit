@@ -44,6 +44,27 @@ internal extension AO3Client {
             throw AO3ClientError.invalidData
         }
     }
+
+    /// Performs a server-side logout (`DELETE /users/logout`) and clears local session cookies and caches.
+    func logoutFromServer() async throws {
+        defer { logout() }
+
+        guard isLoggedIn else { return }
+        guard let logoutURL = AO3Endpoint.usersCollection(.logout).url(),
+              let homeURL = AO3Endpoint.home.url() else {
+            throw AO3ClientError.invalidURL
+        }
+
+        _ = try await performAuthenticatedFormPost(
+            url: logoutURL,
+            tokenFallbackURL: homeURL
+        ) { csrfToken in
+            [
+                URLQueryItem(name: "_method", value: "delete"),
+                URLQueryItem(name: "authenticity_token", value: csrfToken)
+            ]
+        }
+    }
     
     // MARK: History & Marked for Later
     
