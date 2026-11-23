@@ -308,4 +308,14 @@ public struct AO3WorksAPI: Sendable {
     public func reviewAllComments<Fic: AO3FicModel>(for fic: Fic) async throws {
         try await client.reviewAllComments(forWorkID: fic.id)
     }
+
+    // MARK: Hit Count
+
+    public func recordHitCount(for workID: Int) async throws {
+        try await client.recordHitCount(for: workID)
+    }
+
+    public func recordHitCount<Fic: AO3FicModel>(for fic: Fic) async throws {
+        try await client.recordHitCount(for: fic.id)
+    }
 }

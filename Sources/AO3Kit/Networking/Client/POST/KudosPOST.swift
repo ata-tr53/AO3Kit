@@ -15,7 +15,7 @@ internal extension AO3Client {
     @discardableResult
     func leaveKudos(for workID: Int) async throws -> Bool {
         guard let workURL = AO3Endpoint.work(id: workID, route: .main).url(bypassAdultBlock: bypassAdultBlock),
-              let kudosURL = URL(string: "https://archiveofourown.org/kudos") else {
+              let kudosURL = AO3Endpoint.kudos.url() else {
             throw AO3ClientError.invalidURL
         }
         
@@ -38,5 +38,21 @@ internal extension AO3Client {
         return true
     }
 
-    
+    /// Records a view hit for a work (`POST /works/:id/hit_count`).
+    func recordHitCount(for workID: Int) async throws {
+        guard let workURL = AO3Endpoint.work(id: workID, route: .main).url(bypassAdultBlock: bypassAdultBlock),
+              let hitCountURL = AO3Endpoint.work(id: workID, route: .hitCount).url() else {
+            throw AO3ClientError.invalidURL
+        }
+
+        _ = try await performAuthenticatedFormPost(
+            url: hitCountURL,
+            tokenFallbackURL: workURL,
+            includeXHRHeaders: true
+        ) { csrfToken in
+            [
+                URLQueryItem(name: "authenticity_token", value: csrfToken)
+            ]
+        }
+    }
 }

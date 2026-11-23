@@ -46,6 +46,7 @@ public extension AO3Client {
 /// Sources that return paginated lists of `AO3FicPreview`.
 public enum AO3WorkSource: Sendable, Equatable {
     case userWorks(username: String)
+    case pseudWorks(username: String, pseud: String)
     case userGifts(username: String)
     case collection(id: String)
     case collectionTag(collectionID: String, tagName: String)
@@ -57,6 +58,8 @@ public enum AO3WorkSource: Sendable, Equatable {
         switch self {
         case .userWorks(let username):
             return .user(username: username, route: .works)
+        case .pseudWorks(let username, let pseud):
+            return .user(username: username, route: .pseudWorks(name: pseud, action: .index))
         case .userGifts(let username):
             return .user(username: username, route: .gifts)
         case .collection(let id):
@@ -73,6 +76,7 @@ public enum AO3WorkSource: Sendable, Equatable {
     }
     
     public static func userWorks<Author: AO3AuthorModel>(_ author: Author) -> Self { .userWorks(username: author.username) }
+    public static func pseudWorks(_ pseud: AO3AuthorPseudLink) -> Self { .pseudWorks(username: pseud.username, pseud: pseud.pseudName) }
     public static func userGifts<Author: AO3AuthorModel>(_ author: Author) -> Self { .userGifts(username: author.username) }
     public static func collection<Collection: AO3CollectionModel>(_ collection: Collection) -> Self { .collection(id: collection.id) }
     public static func collectionTag<Collection: AO3CollectionModel, Tag: AO3TagModel>(_ collection: Collection, tag: Tag) -> Self {
@@ -85,6 +89,7 @@ public enum AO3WorkSource: Sendable, Equatable {
 /// Sources that return paginated lists of `AO3FicBookmark`.
 public enum AO3BookmarkSource: Sendable, Equatable {
     case user(username: String)
+    case pseud(username: String, pseud: String)
     case collection(id: String)
     case tag(name: String)
     case series(id: Int)
@@ -94,6 +99,8 @@ public enum AO3BookmarkSource: Sendable, Equatable {
         switch self {
         case .user(let username):
             return .user(username: username, route: .bookmarks)
+        case .pseud(let username, let pseud):
+            return .user(username: username, route: .pseudBookmarks(name: pseud, action: .index))
         case .collection(let id):
             return .collection(name: id, route: .bookmarks)
         case .tag(let name):
@@ -106,6 +113,7 @@ public enum AO3BookmarkSource: Sendable, Equatable {
     }
     
     public static func user<Author: AO3AuthorModel>(_ author: Author) -> Self { .user(username: author.username) }
+    public static func pseud(_ pseud: AO3AuthorPseudLink) -> Self { .pseud(username: pseud.username, pseud: pseud.pseudName) }
     public static func collection<Collection: AO3CollectionModel>(_ collection: Collection) -> Self { .collection(id: collection.id) }
     public static func series<Series: AO3SeriesModel>(_ series: Series) -> Self { .series(id: series.id) }
     public static func tag<Tag: AO3TagModel>(_ tag: Tag) -> Self { .tag(name: tag.tagName) }

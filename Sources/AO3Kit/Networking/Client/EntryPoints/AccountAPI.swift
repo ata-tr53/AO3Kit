@@ -159,6 +159,10 @@ public struct AO3AccountAPI: Sendable {
     public func deleteSubscription(for subscription: AO3Subscription) async throws {
         try await client.deleteSubscription(for: subscription)
     }
+
+    public func deleteAllSubscriptions() async throws {
+        try await client.deleteAllSubscriptions()
+    }
     
     // MARK: Muted & Blocked Users
     

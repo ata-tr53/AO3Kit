@@ -88,4 +88,29 @@ internal extension AO3Client {
         await cache.invalidate(containing: username)
         await cache.invalidate(containing: "subscription")
     }
+
+    /// Deletes all subscriptions for the currently authenticated user (`POST /users/:username/subscriptions/delete_all`).
+    func deleteAllSubscriptions() async throws {
+        let username = try await resolveCurrentUsername()
+        guard let confirmURL = AO3Endpoint.user(username: username, route: .confirmDeleteAllSubscriptions).url(),
+              let deleteAllURL = AO3Endpoint.user(username: username, route: .deleteAllSubscriptions).url() else {
+            throw AO3ClientError.invalidURL
+        }
+
+        let responseHTML = try await performAuthenticatedFormPost(
+            url: deleteAllURL,
+            tokenFallbackURL: confirmURL
+        ) { csrfToken in
+            [
+                URLQueryItem(name: "authenticity_token", value: csrfToken)
+            ]
+        }
+
+        if responseHTML.contains("errorExplanation") {
+            throw AO3ClientError.invalidData
+        }
+
+        await cache.invalidate(containing: username)
+        await cache.invalidate(containing: "subscription")
+    }
 }
