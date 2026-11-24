@@ -54,6 +54,59 @@ public struct AO3UsersAPI: Sendable {
         try await client.fetchAllUserSeries(for: author.username, maxPages: maxPages, fallbackStrategy: fallbackStrategy, progressHandler: progressHandler)
     }
 
+    public func pseudSeriesPage(
+        for username: String,
+        pseud: String,
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3SeriesPreview> {
+        try await client.fetchPaginated(
+            endpoint: .user(username: username, route: .pseudSeries(name: pseud, action: .index)),
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseSeriesPreviews
+        )
+    }
+
+    public func pseudSeriesPage(
+        for pseud: AO3AuthorPseudLink,
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3SeriesPreview> {
+        try await pseudSeriesPage(for: pseud.username, pseud: pseud.pseudName, page: page, fallbackStrategy: fallbackStrategy)
+    }
+
+    public func allPseudSeries(
+        for username: String,
+        pseud: String,
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3SeriesPreview] {
+        try await client.fetchAllItems(
+            endpoint: .user(username: username, route: .pseudSeries(name: pseud, action: .index)),
+            maxPages: maxPages,
+            progressHandler: progressHandler,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseSeriesPreviews
+        )
+    }
+
+    public func allPseudSeries(
+        for pseud: AO3AuthorPseudLink,
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3SeriesPreview] {
+        try await allPseudSeries(
+            for: pseud.username,
+            pseud: pseud.pseudName,
+            maxPages: maxPages,
+            fallbackStrategy: fallbackStrategy,
+            progressHandler: progressHandler
+        )
+    }
+
     // MARK: Collections
 
     public func collectionsPage(

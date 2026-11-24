@@ -27,4 +27,30 @@ public struct AO3TagsAPI: Sendable {
     ) async throws -> AO3TagDetails {
         try await client.fetchTagDetails(for: tag.tagName, fallbackStrategy: fallbackStrategy)
     }
+
+    // MARK: Atom Feeds
+
+    /// Fetches the Atom feed for a canonical tag by its numeric AO3 tag ID (`/tags/:id/feed.atom`).
+    public func feed(
+        forTagID tagID: Int,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3TagFeed {
+        try await client.fetchTagFeed(forTagID: tagID, fallbackStrategy: fallbackStrategy)
+    }
+
+    /// Resolves and fetches the Atom feed for a canonical tag by name.
+    public func feed(
+        for tagName: String,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3TagFeed {
+        try await client.fetchTagFeed(forTagName: tagName, fallbackStrategy: fallbackStrategy)
+    }
+
+    /// Resolves and fetches the Atom feed for any `AO3TagModel`.
+    public func feed<Tag: AO3TagModel>(
+        for tag: Tag,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3TagFeed {
+        try await client.fetchTagFeed(forTagName: tag.tagName, fallbackStrategy: fallbackStrategy)
+    }
 }

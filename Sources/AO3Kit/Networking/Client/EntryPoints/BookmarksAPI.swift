@@ -15,7 +15,7 @@ public struct AO3BookmarksAPI: Sendable {
         fallbackStrategy: AO3CacheFallbackStrategy = .useCache
     ) async throws -> AO3PaginatedResult<AO3FicBookmark> {
         try await client.fetchPaginated(
-            endpoint: source.endpoint,
+            url: source.url(bypassAdultBlock: client.bypassAdultBlock),
             page: page,
             fallbackStrategy: fallbackStrategy,
             parser: AO3Parser.parseBookmarks
@@ -30,7 +30,7 @@ public struct AO3BookmarksAPI: Sendable {
         progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
     ) async throws -> [AO3FicBookmark] {
         try await client.fetchAllItems(
-            endpoint: source.endpoint,
+            url: source.url(bypassAdultBlock: client.bypassAdultBlock),
             maxPages: maxPages,
             progressHandler: progressHandler,
             fallbackStrategy: fallbackStrategy,
@@ -38,7 +38,7 @@ public struct AO3BookmarksAPI: Sendable {
         )
     }
     
-    // MARK: Work Spesific
+    // MARK: Work Specific
     
     /// Fetches a page of short bookmark previews (`AO3BookmarkPreview`) for a specific work.
     public func workPreviewsPage(
@@ -138,5 +138,15 @@ public struct AO3BookmarksAPI: Sendable {
     /// Deletes an existing bookmark.
     public func delete(_ bookmark: AO3FicBookmark) async throws {
         try await client.deleteBookmark(id: bookmark.id)
+    }
+
+    /// Adds an existing bookmark to one or more collections.
+    public func addToCollections(bookmarkID: Int, collectionNames: [String]) async throws {
+        try await client.addBookmarkToCollections(bookmarkID: bookmarkID, collectionNames: collectionNames)
+    }
+
+    /// Adds an existing bookmark to one or more collections.
+    public func addToCollections(_ bookmark: AO3FicBookmark, collectionNames: [String]) async throws {
+        try await client.addBookmarkToCollections(bookmarkID: bookmark.id, collectionNames: collectionNames)
     }
 }

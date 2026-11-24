@@ -117,4 +117,29 @@ internal extension AO3Client {
 
         await cache.invalidate(containing: "creatorships")
     }
+
+    // MARK: - Gifts
+
+    func toggleGiftRejected(giftID: Int) async throws {
+        let username = try await resolveCurrentUsername()
+        guard let giftsURL = AO3Endpoint.user(username: username, route: .gifts).url(),
+              let toggleURL = AO3Endpoint.gift(.toggleRejected(id: giftID)).url() else {
+            throw AO3ClientError.invalidURL
+        }
+
+        let responseHTML = try await performAuthenticatedFormPost(
+            url: toggleURL,
+            tokenFallbackURL: giftsURL
+        ) { csrfToken in
+            [
+                URLQueryItem(name: "authenticity_token", value: csrfToken)
+            ]
+        }
+
+        if responseHTML.contains("errorExplanation") {
+            throw AO3ClientError.invalidData
+        }
+
+        await cache.invalidate(containing: "gifts")
+    }
 }

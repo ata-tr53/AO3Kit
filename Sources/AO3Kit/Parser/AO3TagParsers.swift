@@ -60,6 +60,16 @@ public extension AO3Parser {
         }
     }
 
+    static func parseTagFeedURL(from html: String) throws -> URL? {
+        try withDocument(html: html) { doc in
+            guard let href = try doc.select("link[rel=alternate][type='application/atom+xml']").first()?.attr("href"),
+                  !href.isEmpty else {
+                return nil
+            }
+            return href.hasPrefix("http") ? URL(string: href) : URL(string: "https://archiveofourown.org\(href)")
+        }
+    }
+
     // MARK: - Media Categories Parser (/media)
 
     static func parseMediaCategories(html: String) throws -> [AO3MediaCategory] {

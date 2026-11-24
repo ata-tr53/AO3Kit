@@ -20,6 +20,10 @@ public enum AO3BookmarkTarget: Sendable, Equatable, Hashable {
         .series(id: series.id)
     }
 
+    public static func externalWork(_ work: AO3ExternalWork) -> Self {
+        .externalWork(id: work.id)
+    }
+
     internal var newFormEndpoint: AO3Endpoint {
         switch self {
         case .work(let id):

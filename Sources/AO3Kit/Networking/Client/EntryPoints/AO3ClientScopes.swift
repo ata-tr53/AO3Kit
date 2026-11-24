@@ -40,33 +40,45 @@ public extension AO3Client {
     
     /// Fetching and caching image data for user avatars, collection icons, and embedded art.
     var images: AO3ImagesAPI { AO3ImagesAPI(client: self) }
+
+    /// OTW / AO3 operational status and recent incident history.
+    var status: AO3StatusMonitor { .shared }
+
+    /// AO3 FAQ, known issues, static pages (ToS, Privacy, About), abuse reports, and support forms.
+    var site: AO3SiteAPI { AO3SiteAPI(client: self) }
 }
 
 
 /// Sources that return paginated lists of `AO3FicPreview`.
 public enum AO3WorkSource: Sendable, Equatable {
-    case userWorks(username: String)
-    case pseudWorks(username: String, pseud: String)
+    case recent
+    case userWorks(username: String, filter: AO3WorkSearchFilter? = nil)
+    case pseudWorks(username: String, pseud: String, filter: AO3WorkSearchFilter? = nil)
     case userGifts(username: String)
-    case collection(id: String)
-    case collectionTag(collectionID: String, tagName: String)
-    case tag(name: String)
+    case collection(id: String, filter: AO3WorkSearchFilter? = nil)
+    case collectionGifts(collectionID: String)
+    case collectionTag(collectionID: String, tagName: String, filter: AO3WorkSearchFilter? = nil)
+    case tag(name: String, filter: AO3WorkSearchFilter? = nil)
     case language(id: String)
     case search(filter: AO3WorkSearchFilter)
     
     internal var endpoint: AO3Endpoint {
         switch self {
-        case .userWorks(let username):
+        case .recent:
+            return .worksCollection(.index)
+        case .userWorks(let username, _):
             return .user(username: username, route: .works)
-        case .pseudWorks(let username, let pseud):
+        case .pseudWorks(let username, let pseud, _):
             return .user(username: username, route: .pseudWorks(name: pseud, action: .index))
         case .userGifts(let username):
             return .user(username: username, route: .gifts)
-        case .collection(let id):
+        case .collection(let id, _):
             return .collection(name: id, route: .works)
-        case .collectionTag(let collectionID, let tagName):
+        case .collectionGifts(let collectionID):
+            return .collection(name: collectionID, route: .gifts(.index))
+        case .collectionTag(let collectionID, let tagName, _):
             return .collection(name: collectionID, route: .tags(.works(tagName: tagName, action: .index)))
-        case .tag(let name):
+        case .tag(let name, _):
             return .tag(name: name, route: .works)
         case .language(let id):
             return .language(.works(languageID: id, action: .index))
@@ -74,49 +86,129 @@ public enum AO3WorkSource: Sendable, Equatable {
             return .worksSearch(queryItems: filter.queryItems)
         }
     }
-    
-    public static func userWorks<Author: AO3AuthorModel>(_ author: Author) -> Self { .userWorks(username: author.username) }
-    public static func pseudWorks(_ pseud: AO3AuthorPseudLink) -> Self { .pseudWorks(username: pseud.username, pseud: pseud.pseudName) }
-    public static func userGifts<Author: AO3AuthorModel>(_ author: Author) -> Self { .userGifts(username: author.username) }
-    public static func collection<Collection: AO3CollectionModel>(_ collection: Collection) -> Self { .collection(id: collection.id) }
-    public static func collectionTag<Collection: AO3CollectionModel, Tag: AO3TagModel>(_ collection: Collection, tag: Tag) -> Self {
-        .collectionTag(collectionID: collection.id, tagName: tag.tagName)
+
+    internal var filterQueryItems: [URLQueryItem] {
+        switch self {
+        case .userWorks(_, let filter),
+             .pseudWorks(_, _, let filter),
+             .collection(_, let filter),
+             .collectionTag(_, _, let filter),
+             .tag(_, let filter):
+            return filter?.queryItems ?? []
+        default:
+            return []
+        }
     }
-    public static func tag<Tag: AO3TagModel>(_ tag: Tag) -> Self { .tag(name: tag.tagName) }
+
+    internal func url(bypassAdultBlock: Bool) -> URL? {
+        guard let baseURL = endpoint.url(bypassAdultBlock: bypassAdultBlock) else { return nil }
+        let extraItems = filterQueryItems
+        guard !extraItems.isEmpty,
+              var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            return baseURL
+        }
+        var items = components.queryItems ?? []
+        items.append(contentsOf: extraItems)
+        components.queryItems = items
+        return components.url
+    }
+    
+    public static func userWorks<Author: AO3AuthorModel>(_ author: Author, filter: AO3WorkSearchFilter? = nil) -> Self {
+        .userWorks(username: author.username, filter: filter)
+    }
+    public static func pseudWorks(_ pseud: AO3AuthorPseudLink, filter: AO3WorkSearchFilter? = nil) -> Self {
+        .pseudWorks(username: pseud.username, pseud: pseud.pseudName, filter: filter)
+    }
+    public static func userGifts<Author: AO3AuthorModel>(_ author: Author) -> Self { .userGifts(username: author.username) }
+    public static func collection<Collection: AO3CollectionModel>(_ collection: Collection, filter: AO3WorkSearchFilter? = nil) -> Self {
+        .collection(id: collection.id, filter: filter)
+    }
+    public static func collectionGifts<Collection: AO3CollectionModel>(_ collection: Collection) -> Self {
+        .collectionGifts(collectionID: collection.id)
+    }
+    public static func collectionTag<Collection: AO3CollectionModel, Tag: AO3TagModel>(
+        _ collection: Collection,
+        tag: Tag,
+        filter: AO3WorkSearchFilter? = nil
+    ) -> Self {
+        .collectionTag(collectionID: collection.id, tagName: tag.tagName, filter: filter)
+    }
+    public static func tag<Tag: AO3TagModel>(_ tag: Tag, filter: AO3WorkSearchFilter? = nil) -> Self {
+        .tag(name: tag.tagName, filter: filter)
+    }
     public static func language(_ language: AO3Language) -> Self { .language(id: language.id) }
 }
 
 /// Sources that return paginated lists of `AO3FicBookmark`.
 public enum AO3BookmarkSource: Sendable, Equatable {
-    case user(username: String)
-    case pseud(username: String, pseud: String)
-    case collection(id: String)
-    case tag(name: String)
+    case recent
+    case user(username: String, filter: AO3BookmarkSearchFilter? = nil)
+    case pseud(username: String, pseud: String, filter: AO3BookmarkSearchFilter? = nil)
+    case collection(id: String, filter: AO3BookmarkSearchFilter? = nil)
+    case tag(name: String, filter: AO3BookmarkSearchFilter? = nil)
     case series(id: Int)
+    case externalWork(id: Int)
     case search(filter: AO3BookmarkSearchFilter)
     
     internal var endpoint: AO3Endpoint {
         switch self {
-        case .user(let username):
+        case .recent:
+            return .bookmarks(.index)
+        case .user(let username, _):
             return .user(username: username, route: .bookmarks)
-        case .pseud(let username, let pseud):
+        case .pseud(let username, let pseud, _):
             return .user(username: username, route: .pseudBookmarks(name: pseud, action: .index))
-        case .collection(let id):
+        case .collection(let id, _):
             return .collection(name: id, route: .bookmarks)
-        case .tag(let name):
+        case .tag(let name, _):
             return .tag(name: name, route: .bookmarks)
         case .series(let id):
             return .series(id: id, route: .bookmarks)
+        case .externalWork(let id):
+            return .externalWork(.bookmarks(externalWorkID: id, action: .index))
         case .search(let filter):
             return .bookmarksSearch(queryItems: filter.queryItems)
         }
     }
+
+    internal var filterQueryItems: [URLQueryItem] {
+        switch self {
+        case .user(_, let filter),
+             .pseud(_, _, let filter),
+             .collection(_, let filter),
+             .tag(_, let filter):
+            return filter?.queryItems ?? []
+        default:
+            return []
+        }
+    }
+
+    internal func url(bypassAdultBlock: Bool) -> URL? {
+        guard let baseURL = endpoint.url(bypassAdultBlock: bypassAdultBlock) else { return nil }
+        let extraItems = filterQueryItems
+        guard !extraItems.isEmpty,
+              var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            return baseURL
+        }
+        var items = components.queryItems ?? []
+        items.append(contentsOf: extraItems)
+        components.queryItems = items
+        return components.url
+    }
     
-    public static func user<Author: AO3AuthorModel>(_ author: Author) -> Self { .user(username: author.username) }
-    public static func pseud(_ pseud: AO3AuthorPseudLink) -> Self { .pseud(username: pseud.username, pseud: pseud.pseudName) }
-    public static func collection<Collection: AO3CollectionModel>(_ collection: Collection) -> Self { .collection(id: collection.id) }
+    public static func user<Author: AO3AuthorModel>(_ author: Author, filter: AO3BookmarkSearchFilter? = nil) -> Self {
+        .user(username: author.username, filter: filter)
+    }
+    public static func pseud(_ pseud: AO3AuthorPseudLink, filter: AO3BookmarkSearchFilter? = nil) -> Self {
+        .pseud(username: pseud.username, pseud: pseud.pseudName, filter: filter)
+    }
+    public static func collection<Collection: AO3CollectionModel>(_ collection: Collection, filter: AO3BookmarkSearchFilter? = nil) -> Self {
+        .collection(id: collection.id, filter: filter)
+    }
     public static func series<Series: AO3SeriesModel>(_ series: Series) -> Self { .series(id: series.id) }
-    public static func tag<Tag: AO3TagModel>(_ tag: Tag) -> Self { .tag(name: tag.tagName) }
+    public static func tag<Tag: AO3TagModel>(_ tag: Tag, filter: AO3BookmarkSearchFilter? = nil) -> Self {
+        .tag(name: tag.tagName, filter: filter)
+    }
 }
 
 /// Targets that hold comment threads (`AO3ChapterCommentThread`).

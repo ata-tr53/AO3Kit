@@ -303,12 +303,55 @@ public struct AO3AccountAPI: Sendable {
         try await client.setSkin(id: skinID)
     }
 
-    public func setSkin(_ skin: AO3Skin) async throws {
+    public func setSkin<Skin: AO3SkinModel>(_ skin: Skin) async throws {
         try await client.setSkin(id: skin.id)
     }
 
     public func unsetSkin() async throws {
         try await client.unsetSkin()
+    }
+
+    public func skinDetails(
+        id skinID: Int,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3SkinDetails {
+        try await client.fetchSkinDetails(id: skinID, fallbackStrategy: fallbackStrategy)
+    }
+
+    public func skinDetails<Skin: AO3SkinModel>(
+        for skin: Skin,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3SkinDetails {
+        try await client.fetchSkinDetails(id: skin.id, fallbackStrategy: fallbackStrategy)
+    }
+
+    public func previewSkin(id skinID: Int) async throws {
+        try await client.previewSkin(id: skinID)
+    }
+
+    public func previewSkin<Skin: AO3SkinModel>(_ skin: Skin) async throws {
+        try await client.previewSkin(id: skin.id)
+    }
+
+    @discardableResult
+    public func createSkin(_ draft: AO3SkinDraft) async throws -> Int? {
+        try await client.createSkin(draft)
+    }
+
+    public func updateSkin(id skinID: Int, draft: AO3SkinDraft) async throws {
+        try await client.updateSkin(id: skinID, draft: draft)
+    }
+
+    public func updateSkin<Skin: AO3SkinModel>(_ skin: Skin, draft: AO3SkinDraft) async throws {
+        try await client.updateSkin(id: skin.id, draft: draft)
+    }
+
+    public func deleteSkin(id skinID: Int) async throws {
+        try await client.deleteSkin(id: skinID)
+    }
+
+    public func deleteSkin<Skin: AO3SkinModel>(_ skin: Skin) async throws {
+        try await client.deleteSkin(id: skin.id)
     }
 
     // MARK: User Preferences
@@ -444,5 +487,267 @@ public struct AO3AccountAPI: Sendable {
 
     public func respondToCoCreatorRequest(_ request: AO3CoCreatorRequest, accept: Bool) async throws {
         try await client.respondToCoCreatorRequests(ids: [request.id], accept: accept)
+    }
+
+    // MARK: Gifts
+
+    /// Toggles whether a gift work is refused or accepted (`POST /gifts/:id/toggle_rejected`).
+    public func toggleGiftRejected(giftID: Int) async throws {
+        try await client.toggleGiftRejected(giftID: giftID)
+    }
+
+    // MARK: Profile & Pseuds Editing
+
+    public func profileDraft() async throws -> AO3ProfileDraft {
+        try await client.fetchProfileDraft()
+    }
+
+    public func updateProfile(_ draft: AO3ProfileDraft) async throws {
+        try await client.updateProfile(draft)
+    }
+
+    public func createPseud(_ draft: AO3PseudDraft) async throws {
+        try await client.createPseud(draft)
+    }
+
+    public func updatePseud(named currentName: String, draft: AO3PseudDraft) async throws {
+        try await client.updatePseud(named: currentName, draft: draft)
+    }
+
+    public func updatePseud(_ pseud: AO3AuthorPseudLink, draft: AO3PseudDraft) async throws {
+        try await client.updatePseud(named: pseud.pseudName, draft: draft)
+    }
+
+    public func deletePseud(named name: String) async throws {
+        try await client.deletePseud(named: name)
+    }
+
+    public func deletePseud(_ pseud: AO3AuthorPseudLink) async throws {
+        try await client.deletePseud(named: pseud.pseudName)
+    }
+
+    // MARK: Collection Items (Approving / Rejecting Collection Invites)
+
+    public func collectionItemsPage(
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3CollectionItem> {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchPaginated(
+            endpoint: .user(username: username, route: .collectionItems(.index)),
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseUserCollectionItems
+        )
+    }
+
+    public func allCollectionItems(
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3CollectionItem] {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchAllItems(
+            endpoint: .user(username: username, route: .collectionItems(.index)),
+            maxPages: maxPages,
+            progressHandler: progressHandler,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseUserCollectionItems
+        )
+    }
+
+    public func updateCollectionItems(
+        decisions: [Int: AO3CollectionItemStatus] = [:],
+        removeIDs: [Int] = []
+    ) async throws {
+        try await client.updateUserCollectionItems(decisions: decisions, removeIDs: removeIDs)
+    }
+
+    // MARK: Credentials & Password Reset
+
+    public func requestPasswordReset(loginOrEmail: String) async throws {
+        try await client.requestPasswordReset(loginOrEmail: loginOrEmail)
+    }
+
+    public func changePassword(currentPassword: String, newPassword: String) async throws {
+        try await client.changePassword(currentPassword: currentPassword, newPassword: newPassword)
+    }
+
+    public func changeEmail(currentPassword: String, newEmail: String) async throws {
+        try await client.changeEmail(currentPassword: currentPassword, newEmail: newEmail)
+    }
+
+    public func changeUsername(currentPassword: String, newUsername: String) async throws {
+        try await client.changeUsername(currentPassword: currentPassword, newUsername: newUsername)
+    }
+
+    public func reconfirmEmail() async throws {
+        try await client.reconfirmEmail()
+    }
+
+    // MARK: Invite Queue & Invitations
+
+    public func requestInvitation(email: String) async throws {
+        try await client.requestInvitation(email: email)
+    }
+
+    public func inviteQueueStatus(forEmail email: String) async throws -> AO3InviteQueueStatus {
+        try await client.fetchInviteQueueStatus(email: email)
+    }
+
+    public func invitations(
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> [AO3Invitation] {
+        try await client.fetchUserInvitations(fallbackStrategy: fallbackStrategy)
+    }
+
+    public func inviteFriend(email: String) async throws {
+        try await client.inviteFriend(email: email)
+    }
+
+    public func requestUserInvitations(quantity: Int, reason: String) async throws {
+        try await client.requestUserInvitations(quantity: quantity, reason: reason)
+    }
+
+    // MARK: Challenge Dashboard (Signups, Assignments, Claims, Tag Sets, Nominations)
+
+    public func signupsPage(
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3ChallengeSignup> {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchPaginated(
+            endpoint: .user(username: username, route: .signups),
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseUserSignups
+        )
+    }
+
+    public func allSignups(
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3ChallengeSignup] {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchAllItems(
+            endpoint: .user(username: username, route: .signups),
+            maxPages: maxPages,
+            progressHandler: progressHandler,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseUserSignups
+        )
+    }
+
+    public func assignmentsPage(
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3ChallengeAssignment> {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchPaginated(
+            endpoint: .user(username: username, route: .assignments),
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseUserAssignments
+        )
+    }
+
+    public func allAssignments(
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3ChallengeAssignment] {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchAllItems(
+            endpoint: .user(username: username, route: .assignments),
+            maxPages: maxPages,
+            progressHandler: progressHandler,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseUserAssignments
+        )
+    }
+
+    public func claimsPage(
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3ChallengeClaim> {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchPaginated(
+            endpoint: .user(username: username, route: .claims),
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseUserClaims
+        )
+    }
+
+    public func allClaims(
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3ChallengeClaim] {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchAllItems(
+            endpoint: .user(username: username, route: .claims),
+            maxPages: maxPages,
+            progressHandler: progressHandler,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseUserClaims
+        )
+    }
+
+    public func tagSetsPage(
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3TagSetPreview> {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchPaginated(
+            endpoint: .user(username: username, route: .tagSets),
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseTagSets
+        )
+    }
+
+    public func allTagSets(
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3TagSetPreview] {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchAllItems(
+            endpoint: .user(username: username, route: .tagSets),
+            maxPages: maxPages,
+            progressHandler: progressHandler,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseTagSets
+        )
+    }
+
+    public func nominationsPage(
+        page: Int = 1,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3PaginatedResult<AO3TagSetNomination> {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchPaginated(
+            endpoint: .user(username: username, route: .nominations),
+            page: page,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseUserNominations
+        )
+    }
+
+    public func allNominations(
+        maxPages: Int? = nil,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil
+    ) async throws -> [AO3TagSetNomination] {
+        let username = try await client.resolveCurrentUsername()
+        return try await client.fetchAllItems(
+            endpoint: .user(username: username, route: .nominations),
+            maxPages: maxPages,
+            progressHandler: progressHandler,
+            fallbackStrategy: fallbackStrategy,
+            parser: AO3Parser.parseUserNominations
+        )
     }
 }

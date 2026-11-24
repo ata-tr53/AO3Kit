@@ -111,6 +111,88 @@ internal extension AO3Client {
         await cache.invalidate(containing: "comments")
     }
 
+    /// Posts a guest comment or reply on a chapter without requiring an authenticated session.
+    func postGuestComment(
+        content: String,
+        guestName: String,
+        guestEmail: String,
+        chapterID: Int,
+        replyToCommentID: Int? = nil
+    ) async throws {
+        guard let chapterURL = AO3Endpoint.chapter(id: chapterID, route: .main).url(bypassAdultBlock: self.bypassAdultBlock) else {
+            throw AO3ClientError.invalidURL
+        }
+
+        let commentableType = replyToCommentID != nil ? "Comment" : "Chapter"
+        let targetID = replyToCommentID != nil ? String(replyToCommentID!) : String(chapterID)
+        let postURLString = replyToCommentID.map { "https://archiveofourown.org/comments/\($0)/comments" }
+            ?? "https://archiveofourown.org/chapters/\(chapterID)/comments"
+
+        guard let postURL = URL(string: postURLString) else {
+            throw AO3ClientError.invalidURL
+        }
+
+        let responseHTML = try await performAuthenticatedFormPost(
+            url: postURL,
+            tokenFallbackURL: chapterURL
+        ) { csrfToken in
+            [
+                URLQueryItem(name: "utf8", value: "✓"),
+                URLQueryItem(name: "authenticity_token", value: csrfToken),
+                URLQueryItem(name: "comment[commentable_type]", value: commentableType),
+                URLQueryItem(name: "comment[commentable_id]", value: targetID),
+                URLQueryItem(name: "comment[name]", value: guestName),
+                URLQueryItem(name: "comment[email]", value: guestEmail),
+                URLQueryItem(name: "comment[comment_content]", value: content),
+                URLQueryItem(name: "commit", value: replyToCommentID != nil ? "Reply" : "Comment")
+            ]
+        }
+
+        if responseHTML.contains("errorExplanation") {
+            throw AO3ClientError.invalidData
+        }
+
+        await cache.invalidate(containing: String(chapterID))
+        await cache.invalidate(containing: "comments")
+    }
+
+    /// Posts a guest comment or reply on any `AO3Commentable` without requiring an authenticated session.
+    func postGuestComment<Target: AO3Commentable>(
+        on target: Target,
+        content: String,
+        guestName: String,
+        guestEmail: String
+    ) async throws {
+        guard let hostURL = target.commentHostEndpoint.url(bypassAdultBlock: self.bypassAdultBlock),
+              let postURL = target.postCommentEndpoint.url() else {
+            throw AO3ClientError.invalidURL
+        }
+
+        let isReply = target.commentableType == .comment
+        let responseHTML = try await performAuthenticatedFormPost(
+            url: postURL,
+            tokenFallbackURL: hostURL
+        ) { csrfToken in
+            [
+                URLQueryItem(name: "utf8", value: "✓"),
+                URLQueryItem(name: "authenticity_token", value: csrfToken),
+                URLQueryItem(name: "comment[commentable_type]", value: target.commentableType.rawValue),
+                URLQueryItem(name: "comment[commentable_id]", value: String(target.commentableID)),
+                URLQueryItem(name: "comment[name]", value: guestName),
+                URLQueryItem(name: "comment[email]", value: guestEmail),
+                URLQueryItem(name: "comment[comment_content]", value: content),
+                URLQueryItem(name: "commit", value: isReply ? "Reply" : "Comment")
+            ]
+        }
+
+        if responseHTML.contains("errorExplanation") {
+            throw AO3ClientError.invalidData
+        }
+
+        await cache.invalidate(containing: String(target.commentableID))
+        await cache.invalidate(containing: "comments")
+    }
+
     /// Edits the body of an existing comment (`PATCH /comments/:id`).
     func editComment(id commentID: Int, content: String) async throws {
         guard isLoggedIn else { throw AO3ClientError.requiresRegistration }

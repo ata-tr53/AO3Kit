@@ -11,6 +11,7 @@ import OSLog
 
 @Observable
 public final class AO3Client: Sendable {
+    public static let version = AO3KitVersion(0, 1, 0)
     
     internal let session: URLSession
     internal let userAgent: String
@@ -24,7 +25,7 @@ public final class AO3Client: Sendable {
     
     public init(
         session: URLSession = .shared,
-        userAgent: String = "AO3Kit/1.0 (Compatible; iOS/macOS)",
+        userAgent: String = "AO3Kit/\(AO3Client.version) (Compatible; iOS/macOS)",
         bypassAdultBlock: Bool = true,
         cache: AO3Cache = AO3Cache(
             storageStrategy: .memoryOnly,

@@ -21,6 +21,47 @@ internal extension AO3Client {
         }
     }
 
+    func fetchTagFeed(
+        forTagID tagID: Int,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3TagFeed {
+        try await fetchCachedItem(
+            endpoint: .tag(name: String(tagID), route: .feed(atom: true)),
+            cacheKey: "tag_feed_\(tagID)",
+            headers: ["Accept": "application/atom+xml, application/xml, text/xml"],
+            fallbackStrategy: fallbackStrategy
+        ) { xmlString in
+            guard let data = xmlString.data(using: .utf8) else {
+                throw AO3ClientError.invalidData
+            }
+            return try AO3TagFeedParser(data: data).parse()
+        }
+    }
+
+    func fetchTagFeed(
+        forTagName tagName: String,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3TagFeed {
+        guard let worksURL = AO3Endpoint.tag(name: tagName, route: .works).url(bypassAdultBlock: self.bypassAdultBlock) else {
+            throw AO3ClientError.invalidURL
+        }
+        let worksHTML = try await performRequest(url: worksURL)
+        guard let feedURL = try AO3Parser.parseTagFeedURL(from: worksHTML) else {
+            throw AO3ClientError.invalidEndpoint
+        }
+        return try await fetchCachedItem(
+            url: feedURL,
+            cacheKey: "tag_feed_name_\(tagName)",
+            headers: ["Accept": "application/atom+xml, application/xml, text/xml"],
+            fallbackStrategy: fallbackStrategy
+        ) { xmlString in
+            guard let data = xmlString.data(using: .utf8) else {
+                throw AO3ClientError.invalidData
+            }
+            return try AO3TagFeedParser(data: data).parse()
+        }
+    }
+
     func fetchMediaCategories(
         fallbackStrategy: AO3CacheFallbackStrategy = .useCache
     ) async throws -> [AO3MediaCategory] {

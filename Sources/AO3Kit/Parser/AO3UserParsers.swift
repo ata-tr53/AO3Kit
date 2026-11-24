@@ -146,5 +146,15 @@ public extension AO3Parser {
         }
         return (unblockID, unmuteID)
     }
+
+    // MARK: - Profile Edit Draft Parser
+
+    static func parseProfileDraft(from html: String) throws -> AO3ProfileDraft {
+        try withDocument(html: html) { doc in
+            let title = doc.firstAttr("input[name='profile_attributes[title]']", "value") ?? ""
+            let aboutMe = (try? doc.select("textarea[name='profile_attributes[about_me]']").first()?.text()) ?? ""
+            return AO3ProfileDraft(title: title, aboutMe: aboutMe)
+        }
+    }
     
 }

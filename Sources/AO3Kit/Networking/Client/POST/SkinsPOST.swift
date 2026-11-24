@@ -108,4 +108,134 @@ internal extension AO3Client {
 
         await cache.invalidate(containing: "skins")
     }
+
+    func fetchSkinDetails(
+        id skinID: Int,
+        fallbackStrategy: AO3CacheFallbackStrategy = .useCache
+    ) async throws -> AO3SkinDetails {
+        try await fetchCachedItem(
+            endpoint: .skin(.show(id: skinID)),
+            cacheKey: "skin_details_\(skinID)",
+            fallbackStrategy: fallbackStrategy
+        ) { html in
+            try AO3Parser.parseSkinDetails(html: html, id: skinID)
+        }
+    }
+
+    func previewSkin(id skinID: Int) async throws {
+        guard isLoggedIn else { throw AO3ClientError.requiresRegistration }
+        guard let previewURL = AO3Endpoint.skin(.preview(id: skinID)).url() else {
+            throw AO3ClientError.invalidURL
+        }
+        _ = try await performRequest(url: previewURL)
+    }
+
+    @discardableResult
+    func createSkin(_ draft: AO3SkinDraft) async throws -> Int? {
+        guard isLoggedIn else { throw AO3ClientError.requiresRegistration }
+        guard let newURL = AO3Endpoint.skin(.new).url(),
+              let postURL = AO3Endpoint.skin(.index).url() else {
+            throw AO3ClientError.invalidURL
+        }
+
+        let responseHTML = try await performAuthenticatedFormPost(
+            url: postURL,
+            tokenFallbackURL: newURL
+        ) { csrfToken in
+            buildSkinFormItems(draft: draft, csrfToken: csrfToken, isEditing: false)
+        }
+
+        if responseHTML.contains("errorExplanation") {
+            throw AO3ClientError.invalidData
+        }
+
+        await cache.invalidate(containing: "skins")
+        return try? AO3Parser.parseSkinIDFromResponse(html: responseHTML)
+    }
+
+    func updateSkin(id skinID: Int, draft: AO3SkinDraft) async throws {
+        guard isLoggedIn else { throw AO3ClientError.requiresRegistration }
+        guard let editURL = AO3Endpoint.skin(.edit(id: skinID)).url(),
+              let updateURL = AO3Endpoint.skin(.show(id: skinID)).url() else {
+            throw AO3ClientError.invalidURL
+        }
+
+        let responseHTML = try await performAuthenticatedFormPost(
+            url: updateURL,
+            tokenFallbackURL: editURL
+        ) { csrfToken in
+            buildSkinFormItems(draft: draft, csrfToken: csrfToken, isEditing: true)
+        }
+
+        if responseHTML.contains("errorExplanation") {
+            throw AO3ClientError.invalidData
+        }
+
+        await cache.invalidate(containing: "skins")
+        await cache.invalidate(containing: "skin_details_\(skinID)")
+    }
+
+    func deleteSkin(id skinID: Int) async throws {
+        guard isLoggedIn else { throw AO3ClientError.requiresRegistration }
+        guard let confirmURL = AO3Endpoint.skin(.confirmDelete(id: skinID)).url(),
+              let skinURL = AO3Endpoint.skin(.show(id: skinID)).url() else {
+            throw AO3ClientError.invalidURL
+        }
+
+        let responseHTML = try await performAuthenticatedFormPost(
+            url: skinURL,
+            tokenFallbackURL: confirmURL
+        ) { csrfToken in
+            [
+                URLQueryItem(name: "_method", value: "delete"),
+                URLQueryItem(name: "authenticity_token", value: csrfToken)
+            ]
+        }
+
+        if responseHTML.contains("errorExplanation") {
+            throw AO3ClientError.invalidData
+        }
+
+        await cache.invalidate(containing: "skins")
+        await cache.invalidate(containing: "skin_details_\(skinID)")
+    }
+
+    private func buildSkinFormItems(
+        draft: AO3SkinDraft,
+        csrfToken: String,
+        isEditing: Bool
+    ) -> [URLQueryItem] {
+        var items: [URLQueryItem] = [
+            URLQueryItem(name: "utf8", value: "✓"),
+            URLQueryItem(name: "authenticity_token", value: csrfToken),
+            URLQueryItem(name: "skin[type]", value: draft.type == .work ? "WorkSkin" : "Skin"),
+            URLQueryItem(name: "skin[title]", value: draft.title),
+            URLQueryItem(name: "skin[description]", value: draft.description),
+            URLQueryItem(name: "skin[css]", value: draft.css),
+            URLQueryItem(name: "skin[public]", value: draft.isPublic ? "1" : "0"),
+            URLQueryItem(name: "skin[role]", value: draft.role)
+        ]
+
+        if isEditing {
+            items.insert(URLQueryItem(name: "_method", value: "patch"), at: 1)
+        }
+
+        for media in draft.media {
+            items.append(URLQueryItem(name: "skin[media][]", value: media))
+        }
+
+        for (index, parentTitle) in draft.parentSkinTitles.enumerated() {
+            items.append(URLQueryItem(
+                name: "skin[skin_parents_attributes][\(index)][parent_skin_title]",
+                value: parentTitle
+            ))
+            items.append(URLQueryItem(
+                name: "skin[skin_parents_attributes][\(index)][position]",
+                value: String(index + 1)
+            ))
+        }
+
+        items.append(URLQueryItem(name: "commit", value: isEditing ? "Update" : "Submit"))
+        return items
+    }
 }

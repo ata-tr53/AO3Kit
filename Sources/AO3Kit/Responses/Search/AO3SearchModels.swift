@@ -28,6 +28,11 @@ public struct AO3WorkSearchFilter: Sendable, Equatable, Hashable {
     public var relationships: [String] = []
     public var additionalTags: [String] = []
     
+    public var excludedRatings: [AO3ContentRating] = []
+    public var excludedWarnings: [AO3ContentWarning] = []
+    public var excludedCategories: [AO3RelationshipCategory] = []
+    public var excludedTags: [String] = []
+    
     public var hits: String?
     public var kudosCount: String?
     public var commentsCount: String?
@@ -105,6 +110,19 @@ public struct AO3WorkSearchFilter: Sendable, Equatable, Hashable {
         if !characters.isEmpty { add("character_names", characters.joined(separator: ",")) }
         if !relationships.isEmpty { add("relationship_names", relationships.joined(separator: ",")) }
         if !additionalTags.isEmpty { add("freeform_names", additionalTags.joined(separator: ",")) }
+        
+        for excludedRating in excludedRatings {
+            items.append(URLQueryItem(name: "exclude_work_search[rating_ids][]", value: String(excludedRating.ao3SearchTagID)))
+        }
+        for excludedWarning in excludedWarnings {
+            if let id = excludedWarning.ao3SearchTagID {
+                items.append(URLQueryItem(name: "exclude_work_search[archive_warning_ids][]", value: String(id)))
+            }
+        }
+        for excludedCategory in excludedCategories {
+            items.append(URLQueryItem(name: "exclude_work_search[category_ids][]", value: String(excludedCategory.ao3SearchTagID)))
+        }
+        if !excludedTags.isEmpty { add("excluded_tag_names", excludedTags.joined(separator: ",")) }
         
         add("hits", hits)
         add("kudos_count", kudosCount)

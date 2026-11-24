@@ -39,6 +39,14 @@ public enum ResponseType: String, Codable, Sendable {
     case download = "Download"
     case relatedWork = "Related Work"
     case creatorship = "Creatorship"
+    case tagFeed = "Tag Feed"
+    case externalWork = "External Work"
+    case invitation = "Invitation"
+    case challenge = "Challenge"
+    case tagSet = "Tag Set"
+    case faq = "FAQ"
+    case knownIssue = "Known Issue"
+    case staticPage = "Static Page"
 }
 
 public extension Array where Element == any AO3Response {

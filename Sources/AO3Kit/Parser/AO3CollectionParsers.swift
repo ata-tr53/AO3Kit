@@ -108,4 +108,98 @@ public extension AO3Parser {
         if statusText.contains("Anonymous") { options.insert(.anonymous) }
         return options
     }
+
+    // MARK: - Collection Prompts / Requests Parser
+
+    static func parseCollectionPrompts(html: String) throws -> [AO3CollectionPrompt] {
+        try parseElements(html: html, selector: "ul.prompt.index.group > li.prompt.blurb.group") { element in
+            let rawID = element.id().replacingOccurrences(of: "prompt_", with: "")
+            let inputID = element.firstAttr("input[name='prompt_id']", "value")
+            guard let promptID = Int(rawID) ?? inputID.flatMap(Int.init) else { return nil }
+
+            let headingText = element.firstText("h4.heading") ?? ""
+            let requester = parseAuthorLink(from: try element.select("h4.heading a[href^='/users/']").first())
+            let isAnonymous = requester == nil && headingText.localizedCaseInsensitiveContains("Anonymous")
+
+            let title = element.firstText("h4.heading a:not([href^='/users/'])")
+            let fandoms = element.texts("h5.fandoms a.tag")
+            let tags = element.texts("ul.tags li:not(.optional) a.tag")
+            let optionalTags = element.texts("ul.tags li.optional a.tag")
+            let descriptionHTML = try element.select("blockquote.userstuff").first()?.html()
+
+            let claimsText = element.firstText("p.claims, dd.claims") ?? ""
+            let claimCount = claimsText
+                .components(separatedBy: CharacterSet.decimalDigits.inverted)
+                .compactMap(Int.init)
+                .first ?? 0
+
+            return AO3CollectionPrompt(
+                id: promptID,
+                title: title,
+                requester: requester,
+                isAnonymous: isAnonymous,
+                fandoms: fandoms,
+                tags: tags,
+                optionalTags: optionalTags,
+                descriptionHTML: descriptionHTML?.isEmpty == true ? nil : descriptionHTML,
+                claimCount: claimCount
+            )
+        }
+    }
+
+    static func parseCollectionLeaveParticipantID(from html: String) throws -> Int? {
+        try withDocument(html: html) { doc in
+            let selectors = [
+                "a[href*='/participants/'][data-method='delete']",
+                "form[action*='/participants/']:has(input[name='_method'][value='delete'])"
+            ]
+            for selector in selectors {
+                if let el = try doc.select(selector).first() {
+                    let path = (try? el.attr("href")).flatMap { $0.isEmpty ? nil : $0 }
+                        ?? (try? el.attr("action")) ?? ""
+                    if let last = path.split(separator: "/").last, let id = Int(last) {
+                        return id
+                    }
+                }
+            }
+            return nil
+        }
+    }
+
+    // MARK: - User Collection Items Parser (/users/:username/collection_items)
+
+    static func parseUserCollectionItems(html: String) throws -> [AO3CollectionItem] {
+        try parseElements(html: html, selector: "ul.collection.item.index > li, ol.index > li.collection.item") { element in
+            guard let statusSelect = try element.select("select[name*='collection_items['][name*='user_approval_status']").first(),
+                  let selectName = try? statusSelect.attr("name") else {
+                return nil
+            }
+
+            let idString = selectName
+                .replacingOccurrences(of: "collection_items[", with: "")
+                .components(separatedBy: "]")
+                .first ?? ""
+            guard let itemID = Int(idString) else { return nil }
+
+            let collectionLink = try element.select("a[href^='/collections/']").first()
+            let collectionTitle = (try? collectionLink?.text().trimmingCharacters(in: .whitespacesAndNewlines)) ?? ""
+            let collectionID = (try? collectionLink?.attr("href"))?.split(separator: "/").last.map(String.init)
+
+            let workLink = try element.select("a[href^='/works/']").first()
+            let workTitle = (try? workLink?.text().trimmingCharacters(in: .whitespacesAndNewlines)) ?? ""
+            let workID = (try? workLink?.attr("href"))?.split(separator: "/").last.flatMap { Int($0) }
+
+            let selectedValue = (try? statusSelect.select("option[selected]").first()?.attr("value")) ?? ""
+            let status = AO3CollectionItemStatus(rawValue: selectedValue.lowercased()) ?? .unreviewed
+
+            return AO3CollectionItem(
+                id: itemID,
+                collectionID: collectionID,
+                collectionTitle: collectionTitle,
+                workID: workID,
+                workTitle: workTitle,
+                status: status
+            )
+        }
+    }
 }

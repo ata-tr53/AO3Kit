@@ -18,7 +18,7 @@ internal extension AO3Client {
         guard !trimmed.isEmpty else { return [] }
         
         let endpoint = AO3Endpoint.autocomplete(
-            type: scope.pathComponent,
+            type: scope.endpointType,
             queryItems: scope.queryItems(for: trimmed)
         )
         

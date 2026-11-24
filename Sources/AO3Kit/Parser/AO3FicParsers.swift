@@ -240,4 +240,69 @@ public extension AO3Parser {
         let expected = parts.count > 1 ? Int(parts[1]) : nil
         return (current, expected)
     }
+
+    // MARK: - Work & Chapter Form Context Parser
+
+    internal struct AO3WorkFormContext: Sendable {
+        let csrfToken: String
+        let pseudMap: [String: Int]
+        let defaultPseudID: Int?
+    }
+
+    internal static func parseWorkFormContext(from html: String) throws -> AO3WorkFormContext {
+        let csrfToken = try parseCSRFToken(from: html)
+        return try withDocument(html: html) { doc in
+            var pseudMap: [String: Int] = [:]
+            var defaultPseudID: Int? = nil
+
+            let options = try doc.select(
+                "select[name='work[author_attributes][ids][]'] option, select[name='chapter[author_attributes][ids][]'] option"
+            ).array()
+
+            for option in options {
+                let name = (try? option.text().trimmingCharacters(in: .whitespacesAndNewlines)) ?? ""
+                guard let id = Int((try? option.attr("value")) ?? "") else { continue }
+                if !name.isEmpty {
+                    pseudMap[name] = id
+                }
+                if option.hasAttr("selected") || defaultPseudID == nil {
+                    defaultPseudID = id
+                }
+            }
+
+            if defaultPseudID == nil,
+               let hiddenInput = try doc.select("input[name='work[author_attributes][ids][]'], input[name='chapter[author_attributes][ids][]']").first(),
+               let id = Int((try? hiddenInput.attr("value")) ?? "") {
+                defaultPseudID = id
+            }
+
+            return AO3WorkFormContext(
+                csrfToken: csrfToken,
+                pseudMap: pseudMap,
+                defaultPseudID: defaultPseudID
+            )
+        }
+    }
+
+    internal static func parseWorkIDFromResponse(html: String) throws -> Int? {
+        try withDocument(html: html) { doc in
+            let selectors = [
+                "link[rel='canonical'][href*='/works/']",
+                "a[href^='/works/'][href$='/edit']",
+                "form[action^='/works/']"
+            ]
+            for selector in selectors {
+                if let el = try doc.select(selector).first() {
+                    let raw = (try? el.attr("href")).flatMap { $0.isEmpty ? nil : $0 }
+                        ?? (try? el.attr("action")) ?? ""
+                    let parts = raw.split(separator: "/")
+                    if let idx = parts.firstIndex(of: "works"), idx + 1 < parts.count,
+                       let id = Int(parts[idx + 1]) {
+                        return id
+                    }
+                }
+            }
+            return nil
+        }
+    }
 }
