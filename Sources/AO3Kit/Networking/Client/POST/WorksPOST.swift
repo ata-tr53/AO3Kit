@@ -256,7 +256,7 @@ internal extension AO3Client {
 
     // MARK: - Helpers
 
-    internal func resolveAuthorPseudIDs(
+    func resolveAuthorPseudIDs(
         requestedNames: [String],
         context: AO3Parser.AO3WorkFormContext
     ) throws -> [Int] {

@@ -37,6 +37,8 @@ public actor AO3RateLimiter {
     /// Suspends the current task if a server penalty is active,
     /// or if the effective delay hasn't passed since the last request.
     public func waitIfNeeded() async throws {
+        try Task.checkCancellation()
+        
         let now = Date()
         
         let earliestAvailable = max(
@@ -62,6 +64,8 @@ public actor AO3RateLimiter {
     /// Extends the global network suspension until the specified duration passes.
     /// This is triggered when intercepting a 429 Retry-After header.
     public func imposePenalty(seconds: TimeInterval) {
+        guard seconds.isFinite, seconds > 0 else { return }
+        
         let newPenaltyTime = Date().addingTimeInterval(seconds)
         
         if newPenaltyTime > penaltyUntil {

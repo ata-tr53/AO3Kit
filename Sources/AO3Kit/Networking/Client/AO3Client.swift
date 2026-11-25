@@ -152,9 +152,13 @@ public final class AO3Client: Sendable {
     internal func fetchAll<T: Codable & Sendable & AO3Response>(
         for url: URL,
         maxPages: Int?,
-        progressHandler: ((_ currentPage: Int, _ totalPages: Int) -> Void)? = nil,
+        progressHandler: (@Sendable (_ currentPage: Int, _ totalPages: Int) -> Void)? = nil,
         parser: (String) throws -> [T]
     ) async throws -> [T] {
+        guard maxPages == nil || ((maxPages ?? 1) > 0) else {
+            throw AO3ClientError.invalidEndpoint
+        }
+        
         var allItems: [T] = []
         var currentPage = 1
         var totalPages = 1
@@ -244,6 +248,10 @@ public final class AO3Client: Sendable {
         fallbackStrategy: AO3CacheFallbackStrategy = .useCache,
         parser: @Sendable @escaping (String) throws -> [T]
     ) async throws -> [T] {
+        guard maxPages == nil || ((maxPages ?? 1) > 0) else {
+            throw AO3ClientError.invalidEndpoint
+        }
+        
         guard let validURL = url else { throw AO3ClientError.invalidURL }
         
         let limitSuffix = maxPages != nil ? "_limit_\(maxPages!)" : "_unlimited"
